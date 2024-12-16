@@ -10,3 +10,6 @@
 [submodule "tools/polygonal"]
 	path = tools/polygonal
 	url = git@github.com:fdrmrc/Polydeal.git
+[submodule "applications/liver/reduced_lagrange_multipliers"]
+	path = applications/liver/reduced_lagrange_multipliers
+	url = git@github.com:luca-heltai/reduced_lagrange_multipliers.git
