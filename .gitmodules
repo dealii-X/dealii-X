@@ -1,0 +1,3 @@
+[submodule "libraries/psctoolkit"]
+	path = libraries/psctoolkit
+	url = git@github.com:psctoolkit/psctoolkit.git
