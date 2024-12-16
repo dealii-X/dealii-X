@@ -7,3 +7,6 @@
 [submodule "applications/heart/lifex"]
 	path = applications/heart/lifex
 	url = git@gitlab.com:lifex/lifex.git
+[submodule "tools/polygonal"]
+	path = tools/polygonal
+	url = git@github.com:fdrmrc/Polydeal.git
