@@ -1,3 +1,6 @@
+[submodule "libraries/dealii"]
+	path = libraries/dealii
+	url = git@github.com:dealii/dealii.git
 [submodule "libraries/psctoolkit"]
 	path = libraries/psctoolkit
 	url = git@github.com:psctoolkit/psctoolkit.git
