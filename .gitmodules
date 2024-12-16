@@ -1,3 +1,6 @@
 [submodule "libraries/psctoolkit"]
 	path = libraries/psctoolkit
 	url = git@github.com:psctoolkit/psctoolkit.git
+[submodule "applications/heart/lifex"]
+	path = applications/heart/lifex
+	url = git@gitlab.com:lifex/lifex.git
