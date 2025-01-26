@@ -13,3 +13,9 @@
 [submodule "applications/liver/reduced_lagrange_multipliers"]
 	path = applications/liver/reduced_lagrange_multipliers
 	url = git@github.com:luca-heltai/reduced_lagrange_multipliers.git
+[submodule "applications/brain/ExaBrain"]
+	path = applications/brain/ExaBrain
+	url = git@github.com:BRAINIACS-Group/ExaBrain.git
+[submodule "applications/lungs/exadg"]
+	path = applications/lungs/exadg
+	url = git@github.com:exadg/exadg.git
