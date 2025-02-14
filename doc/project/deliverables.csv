@@ -1,0 +1,30 @@
+Number,Deliverable name,Short description,Work package number,Short name of lead participant,Type,Dissemination level,"Delivery date"
+D1.1,External libraries integration,"API Documentation of the interface to external libraries (MUMPS, GMSH, and PSCToolkit)",1,INPT,OTHER,PU,6
+D1.2,Report on deal.II improvements - I semester,"Report on enhancements made to deal.II for exascale readiness, including matrix-free GPU integration, high-performance matrix assembly, and performances of polygonal discretization.",1,UNIPI,R,PU,6
+D1.3,Report on deal.II improvements - II semester,"Report on enhancements made to deal.II for exascale readiness, including matrix-free GPU integration, high-performance matrix assembly, and performances of polygonal discretization.",1,SISSA,R,PU,12
+D1.4,Enhancements in Pre-Exascale Modules,"Report on improvements in pre-exascale modules of deal.II, including meshing improvements, coupling operators, and polygonal discretization",1,UNIPI,R,PU,12
+D1.5,Polygonal Discretization in deal.II - I,Tutorial program on polygonal discretization,1,SISSA,OTHER,PU,12
+D1.6,Tutorials based on external libraries,Toolkits and tutorials demonstrating the integration of PSCToolkit and MUMPS with deal.II,1,UNITOV,OTHER,PU,18
+D1.7,Report on deal.II improvements - III semester,"Report on enhancements made to deal.II for exascale readiness, including matrix-free GPU integration, high-performance matrix assembly, and performances of polygonal discretization.",1,UNITOV,R,PU,18
+D1.8,Polygonal Discretization in deal.II - II,Tutorial program on GMG using polygonal discretization,1,SISSA,OTHER,PU,24
+D1.9,Report on deal.II improvements - IV semester,"Report on enhancements made to deal.II for exascale readiness, including matrix-free GPU integration, high-performance matrix assembly, and performances of polygonal discretization.",1,BADW,R,PU,24
+D1.10,Final report on deal.II improvements,"Report on enhancements made to deal.II for exascale readiness, including matrix-free GPU integration, high-performance matrix assembly, and performances of polygonal discretization.",1,RUB,R,PU,30
+D2.1,Report on applications improvements - I semester,"Report on enhancements made to the digital twin applications (lungs, heart, brain, liver, mechanobiology)",2,TUM,R,PU,6
+D2.2,Report on applications improvements - II semester,"Report on enhancements made to the digital twin applications (lungs, heart, brain, liver, mechanobiology)",2,POLIMI,R,PU,12
+D2.3,Report on applications improvements - III semester,"Report on enhancements made to the digital twin applications (lungs, heart, brain, liver, mechanobiology)",2,FAU,R,PU,18
+D2.4,Report on applications improvements - IV semester,"Report on enhancements made to the digital twin applications (lungs, heart, brain, liver, mechanobiology)",2,UNIBS,R,PU,24
+D2.5,Final report on applications improvements,"Report on enhancements made to the digital twin applications (lungs, heart, brain, liver, mechanobiology)",2,RUB,R,PU,30
+D2.6,Design of the PoC platform,"Report on workflow, dataflow and user experience for the PoC platform",2,EXACT LAB,R,PU,6
+D2.7,Refined design of the PoC platform,Report on additional PoC features required and improvements,2,EXACT LAB,R,PU,24
+D3.1,Co-Design and Energy Efficiency Report - I,"Comprehensive report on co-design activities, technology exploitation, and energy efficiency, including profiling runs and hardware benchmarking.",3,BADW,R,PU,10
+D3.2,Co-Design and Energy Efficiency Report - II ,"Comprehensive report on co-design activities, technology exploitation, and energy efficiency, including profiling runs and hardware benchmarking.",3,BADW,R,PU,27
+D4.1,Communication and Dissemination Plan,The document will define the goals and means of the communication and dissemination activities for the entire lifetime of the project. It may be updated during the project if needed.,4,VPHI,R,PU,4
+D4.2,Public website,The public website will be considered in this deliverable. It will subsequently be maintained and updated to reflect the project’s life.,4,VPHI,R,PU,4
+D4.3,Table of Exploitable Results,"This table will identify and describe all Exploitable Results (ER) expected within the project, and will name a manager for each ER. It will be used subsequently to track Exploitation, and in particular for the Exploitation report (D4.6).",4,VPHI,R,PU,6
+D4.4,Communication and Dissemination intermediate report,"This report will contain a summary of communication and dissemination activities, featuring the metrics defined in D5.1.",4,VPHI,R,PU,15
+D4.5,Communication and Dissemination final report,"This report will contain a summary of communication and dissemination activities, featuring the metrics defined in D5.1.",4,VPHI,R,PU,30
+D4.6,Exploitation report,"This report will summarize the exploitation effort of the project partners, such as patent applications or open sourced elements",4,RUB,R,PU,30
+D5.1,Project Management Handbook,This document will provide an overview of the management and administrative procedures of the project in order to ensure efficient project execution as well as high quality project results.,5,RUB,R,PU,4
+D5.2,Progress Report,This report on the progress of the project will be based on the Guidelines provided by the European Commission as in the article 20.3 of the H2020 annotated Model Grant agreement - without cost statements,5,RUB,R,PU,12
+D5.3,Progress Report M24,This report on the progress of the project will be based on the Guidelines provided by the European Commission as in the article 20.3 of the H2020 annotated Model Grant agreement - without cost statements,5,RUB,R,PU,24
+D5.4,Final Report,Description of the technical and scientific results of the project,5,RUB,R,PU,30
