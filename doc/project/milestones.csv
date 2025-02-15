@@ -1,0 +1,17 @@
+Milestone Number,Milestone Name,Related Work Package(s),Due Date (in month),Means of Verification
+M1,Project started/start of online presence,"WP4, WP5",M04,Project web page is up and running
+M2,PSCToolkit-Deal.II and MUMPS Integration,"WP1.4, WP1.5",M06,"Feature merged in deal.II/project repository, tests up and running"
+M3,Public repository of benchmark sets for performance evaluation,WP3,M10,Benchmark sets run with current software on at least three different accelerated platforms
+M4,Matrix Assembly Interface  Module Completion,WP1.1,M12,"Feature merged in the deal.II/project repository, tests up and running"
+M5,Exascale-ready gmsh API extension,WP1.2,M12,"Feature merged in deal.II/project repository, tests up and running"
+M6,Parallel Polygonal Discretization Module Completion,WP1.3,M15,"Feature merged in deal.II/project repository, tests up and running"
+M7,Scalable Coupling Algorithms Framework Completion,WP1.1,M18,"Feature merged in deal.II/project repository, tests up and running"
+M8,Cardiac Simulator Established for Exascale Computing,WP2.2,M18,Enhance and optimize cardiac solvers in lifex for exascale computing
+M9,Brain Simulator Established for Exascale Computing,WP2.3,M18,"Brain simulator merged in the deal.II/project repository, tests up and running"
+M10,Multiscale Coupled Liver Model Completion,WP2.4,M18,"Code and service delivery, report publication"
+M11,Deployment of the first version of the PoC platform,WP2.6,M18,"Code and service delivery, report publication"
+M12,Polygonal GMG Module Completion,WP1.3,M24,"Feature merged in deal.II/project repository, tests up and running"
+M13,Upscale digital twins to pre-exascale environments ,WP2,M24,"Code and service delivery, report publication"
+M14,Workflow for Full Brain Simulations Established,WP2.3,M30,Verification and validation documentation reports according to a strategic plan
+M15,Verification and validation in Mechanobiology ,WP2.5,M30,Verification and validation documentation reports according to a strategic plan 
+M16,Final deployment of the improved PoC platform,WP2.6,M30,"Code and service delivery, report publication"
