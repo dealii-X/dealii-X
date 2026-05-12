@@ -6,7 +6,7 @@ reduced-complexity workflows.
 
 [Homepage](https://fdrmrc.github.io/Polydeal/) [Repository](https://github.com/fdrmrc/Polydeal)
 
-| ![Polydeal logo](../../media/supporting_code/polytopal/logo.png){width=260px} | ![Polytopal mesh example](../../media/supporting_code/polytopal/polygonmetis_80.png){width=260px} |
+| ![Polydeal logo](../../media/supporting_code/polytopal/logo.png) | ![Polytopal mesh example](../../media/supporting_code/polytopal/polygonmetis_80.png) |
 | --- | --- |
 
 - Focus: polygonal and polyhedral DG discretizations built on top of deal.II.

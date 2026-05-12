@@ -5,8 +5,12 @@ cell motility, receptor relocation on advecting membranes, and
 space-time discretization strategies for transport-driven models.
 
 <div class="repo-placeholder">
-No public repository or public project homepage could be verified yet for this
-application area. The page is intentionally minimal until the code is published.
+The current repositories for the machanobiology work package are distributed within the git repositories of the University of Brescia:
+
+- m4code baseversion. Repository at <git@m4lab.ing.unibs.it>:/home/git/deal.II.codes/m4_code.git
+- m4code parallel version. Repository at <git@m4lab.ing.unibs.it>:/home/git/deal.II.codes/m4_code-X.git
+- constitutive model library. Repository at  <git@m4lab.ing.unibs.it>:/home/git/Constitutive_Model_Library.git
+
 </div>
 
 - Focus: cellular digital twins, advecting membranes, receptor dynamics, and related transport models.

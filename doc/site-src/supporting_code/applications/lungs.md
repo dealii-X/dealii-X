@@ -6,7 +6,7 @@ simulation workflows.
 
 [Homepage](https://exadg.github.io/exadg/index.html) [Repository](https://github.com/exadg/exadg)
 
-| ![ExaDG logo](../../media/supporting_code/lungs/exadg_logo.png){width=260px} | ![Lung model render](../../media/supporting_code/lungs/lungmodel-4k.jpg){width=260px} |
+| ![ExaDG logo](../../media/supporting_code/lungs/exadg_logo.png) | ![Lung model render](../../media/supporting_code/lungs/lungmodel-4k.jpg) |
 | --- | --- |
 
 - Focus: high-order DG solvers, matrix-free performance, scale-resolving CFD.

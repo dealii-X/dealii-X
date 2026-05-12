@@ -6,7 +6,7 @@ robust scalable solver layer for large, difficult coupled systems.
 
 [Homepage](https://psctoolkit.github.io/) [Repository](https://github.com/psctoolkit/psctoolkit)
 
-| ![PSBLAS diagram](../../media/supporting_code/psctoolkit/psblaslibrary.png){width=260px} | ![AMG4PSBLAS diagram](../../media/supporting_code/psctoolkit/amg4psblaslibrary.png){width=260px} |
+| ![PSBLAS diagram](../../media/supporting_code/psctoolkit/psblaslibrary.png) | ![AMG4PSBLAS diagram](../../media/supporting_code/psctoolkit/amg4psblaslibrary.png) |
 | --- | --- |
 
 - Role: scalable sparse linear algebra, algebraic multigrid, and preconditioning.

@@ -6,7 +6,7 @@ full-brain simulations.
 
 [Repository](https://github.com/BRAINIACS-Group/ExaBrain)
 
-| ![Brain application visualization](../../media/figures/brain/image.png){width=260px} | ![Brain application detail](../../media/figures/brain/image_8.png){width=260px} |
+| ![Brain application visualization](../../media/figures/brain/image.png) | ![Brain application detail](../../media/figures/brain/image_8.png) |
 | --- | --- |
 
 - Focus: full-brain mechanics, inversion workflows, region-aware modeling.
