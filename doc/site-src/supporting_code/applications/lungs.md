@@ -6,10 +6,8 @@ simulation workflows.
 
 [Homepage](https://exadg.github.io/exadg/index.html) [Repository](https://github.com/exadg/exadg)
 
-<div class="repo-gallery">
-  <img class="contain" src="../../media/supporting_code/lungs/exadg_logo.png" alt="ExaDG logo">
-  <img src="../../media/supporting_code/lungs/lungmodel-4k.jpg" alt="Lung model render">
-</div>
+| ![ExaDG logo](../../media/supporting_code/lungs/exadg_logo.png){width=260px} | ![Lung model render](../../media/supporting_code/lungs/lungmodel-4k.jpg){width=260px} |
+| --- | --- |
 
 - Focus: high-order DG solvers, matrix-free performance, scale-resolving CFD.
 - Highlights: incompressible flow core, coupled transport workflows, exascale-oriented design.

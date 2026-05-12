@@ -6,10 +6,8 @@ deal.II.
 
 [Homepage](https://lifex.gitlab.io/lifex-public/) [Repository](https://gitlab.com/lifex/lifex-public)
 
-<div class="repo-gallery">
-  <img class="contain" src="../../media/supporting_code/heart/lifex_logo.png" alt="lifeX logo">
-  <img src="../../media/supporting_code/heart/cfd.png" alt="Heart CFD result">
-</div>
+| ![lifeX logo](../../media/supporting_code/heart/lifex_logo.png){width=260px} | ![Heart CFD result](../../media/supporting_code/heart/cfd.png){width=260px} |
+| --- | --- |
 
 - Focus: cardiac simulation workflows with production-grade C++ infrastructure.
 - Highlights: strong deal.II integration, application-ready modules, published user documentation.

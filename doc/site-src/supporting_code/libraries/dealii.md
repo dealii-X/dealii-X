@@ -6,10 +6,8 @@ solver interfaces used across the downstream repositories.
 
 [Homepage](https://www.dealii.org/) [Repository](https://github.com/dealii/dealii)
 
-<div class="repo-gallery">
-  <img class="contain" src="../../media/supporting_code/dealii/logo200.png" alt="deal.II logo">
-  <img src="../../media/supporting_code/dealii/multigrid.png" alt="deal.II multigrid illustration">
-</div>
+| ![deal.II logo](../../media/supporting_code/dealii/logo200.png){width=260px} | ![deal.II multigrid illustration](../../media/supporting_code/dealii/multigrid.png){width=260px} |
+| --- | --- |
 
 - Role: shared numerical infrastructure for virtually every other code in this catalog.
 - Highlights: adaptive finite elements, distributed meshes, matrix-free operators, broad external solver support.

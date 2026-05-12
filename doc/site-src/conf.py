@@ -12,6 +12,7 @@ exclude_patterns = [
     '_build',
     'Thumbs.db',
     '.DS_Store',
+    'codes_repository.md',
     'progress.md',
     'repository_layout.md',
 ]

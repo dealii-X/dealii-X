@@ -1,4 +1,4 @@
-# Supporting code
+# Technical repositories
 
 The project stack is intentionally small and modular: a few core
 libraries, a focused set of lighthouse applications, and a handful of

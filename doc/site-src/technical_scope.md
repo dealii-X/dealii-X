@@ -20,4 +20,4 @@ Key directions
   benchmark suites to compare methods and optimizations.
 
 These themes guide the development of the components listed in the
-`supporting code` section. See `project_overview.md` for a short summary.
+technical repositories section. See `project_overview.md` for a short summary.

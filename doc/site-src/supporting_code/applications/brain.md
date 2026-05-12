@@ -6,10 +6,8 @@ full-brain simulations.
 
 [Repository](https://github.com/BRAINIACS-Group/ExaBrain)
 
-<div class="repo-gallery">
-  <img src="../../media/figures/brain/image.png" alt="Brain application visualization">
-  <img src="../../media/figures/brain/image_8.png" alt="Brain application detail">
-</div>
+| ![Brain application visualization](../../media/figures/brain/image.png){width=260px} | ![Brain application detail](../../media/figures/brain/image_8.png){width=260px} |
+| --- | --- |
 
 - Focus: full-brain mechanics, inversion workflows, region-aware modeling.
 - Status: public repository available; public project homepage not identified separately.

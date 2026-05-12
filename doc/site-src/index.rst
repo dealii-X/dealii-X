@@ -14,5 +14,4 @@ Contents
 
    project_overview
    technical_scope
-   codes_repository
    supporting_code/index
