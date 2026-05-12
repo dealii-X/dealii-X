@@ -1,6 +1,10 @@
 document.addEventListener('DOMContentLoaded', function () {
   try {
-    var script = document.currentScript;
+    var script = Array.prototype.slice
+      .call(document.getElementsByTagName('script'))
+      .find(function (node) {
+        return node.src && /footer_inject\.js(?:\?.*)?$/.test(node.src);
+      });
     var staticRoot = '_static/';
     if (script && script.src) {
       staticRoot = script.src.replace(/footer_inject\.js(?:\?.*)?$/, '');
