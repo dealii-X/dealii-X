@@ -6,7 +6,7 @@
 	url = git@github.com:psctoolkit/psctoolkit.git
 [submodule "applications/heart/lifex"]
 	path = applications/heart/lifex
-	url = git@gitlab.com:lifex/lifex.git
+	url = git@gitlab.com:lifex/lifex-public.git
 [submodule "tools/polygonal"]
 	path = tools/polygonal
 	url = git@github.com:fdrmrc/Polydeal.git
