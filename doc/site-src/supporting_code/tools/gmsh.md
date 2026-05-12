@@ -7,8 +7,7 @@ codes in the stack.
 [Homepage](https://gmsh.info/) [Repository](https://gitlab.onelab.info/gmsh/gmsh)
 
 <div class="repo-placeholder">
-This repository currently contains local Gmsh-related test assets and integration
-work, but not the full upstream Gmsh source as a tracked submodule.
+The Gmsh-related integration has been fully internalized within the current deal.II codebase as a set of utilities within the `GMSH` namespace of the `deal.II` library, allowing users to import partitioned meshes directly from separate gmsh files, without the need to partition them within deal.II.
 </div>
 
 - Role: geometry authoring, meshing, and mesh format interchange across the project.
