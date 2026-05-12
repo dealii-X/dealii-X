@@ -1,8 +1,7 @@
 # Technical scope
 
-This page summarizes, in a concise research-oriented manner, the
-technical directions relevant to software developments and scientific
-themes (excluding administrative aspects).
+The technical directions below shape the software developments and
+scientific themes of the project.
 
 Key directions
 

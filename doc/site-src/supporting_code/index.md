@@ -6,9 +6,7 @@ tools that unlock geometry handling, scalable discretization, and
 workflow orchestration.
 
 <div class="repo-intro">
-This catalog is the production-facing entry point for the technical repositories
-behind dealii-X. Every page stays short on purpose: what the repository is for,
-where it lives, and the one or two visuals that tell the story quickly.
+Core libraries, lighthouse applications, and enabling tools behind dealii-X.
 </div>
 
 <div class="repo-grid">
