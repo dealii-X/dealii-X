@@ -26,7 +26,7 @@ digital twin demonstrators for organs and cellular-scale models.
   </a>
   <a class="repo-card" href="mechanobiology.html">
     <span class="repo-card__kicker">Mechanobiology</span>
-    <strong>Repository pending</strong>
+    <strong>m4code</strong>
     <span>Cell motility, membrane transport, and receptor relocation</span>
   </a>
 </div>
