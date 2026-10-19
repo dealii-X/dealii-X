@@ -264,3 +264,9 @@ by the presence of a recipe.
   PSCToolkit recipe, which the machine's global `build*` ignore rule otherwise
   omitted. Added focused exceptions and unified-patch whitespace attributes;
   required empty diff-context prefixes are preserved byte-for-byte.
+- Opened PR #39 with concise feature coverage, local validation evidence and a
+  grouped checklist linked to the 22 central follow-ups. Linked it bidirectionally
+  with meta-issue #16 and the tracked component index.
+- Verified the isolated PR checkout's 20 Python tests, Linux amd64 contracts image,
+  documentation build and staged diff checks; no external assets or unrelated
+  local documents are included. Original root index checksum remains unchanged.

@@ -1,5 +1,7 @@
 # Integration follow-up tracker
 
+Implementation PR: [#39](https://github.com/dealii-X/dealii-X/pull/39).
+
 Meta-issue: [16](https://github.com/dealii-X/dealii-X/issues/16). All component tasks and upstream ports are coordinated in this repository.
 
 | Task | Target code | Local patch/workaround |

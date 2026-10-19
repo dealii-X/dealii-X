@@ -8,8 +8,8 @@ Tissue/cell models are a later extension.
 
 Remaining work and upstream ports are tracked centrally in
 the [integration meta-issue](https://github.com/dealii-X/dealii-X/issues/16).
-The [component issue index](https://github.com/dealii-X/dealii-X/blob/codex/integrated-workflows/integration/TRACKING.md)
-maps each retained patch and follow-up to its issue in this repository.
+The component index in `integration/TRACKING.md` maps each retained patch and
+follow-up to its issue here. Implementation review: [PR #39](https://github.com/dealii-X/dealii-X/pull/39).
 
 ## Current evidence and limits
 
