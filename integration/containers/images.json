@@ -1,0 +1,7 @@
+{
+  "python": "python:3.12-slim-bookworm@sha256:34386ef0cb081344d7ec1c103ba398e6e9f64e9ab3a1509accc92a4e24a07258",
+  "node": "node:22-bookworm@sha256:0e5f906573693feaa1e21057ebdcfdb5bd5021f050b2dc7c9deceb629c7da2a8",
+  "dealii": "dealii/dealii:v9.7.1-noble@sha256:28a40c95e76879c717a96ea3f5c87cc00ec1d7a4ce9d250ab936fb723eab6995",
+  "4c": "ghcr.io/4c-multiphysics/4c-dependencies-ubuntu24.04:main@sha256:290a0a72254b607bf0ffea9b2845fd03782b62e5a6b587423045eb4bb322d7eb",
+  "cuda": "nvidia/cuda:12.6.2-devel-ubuntu24.04@sha256:738fba0fbdb225b7a2931c58a5c8f03a84d3cd2f6a84975826a157339ef750b8"
+}

@@ -1,0 +1,17 @@
+name: Integration contracts
+on:
+  push:
+    paths: ["integration/**", ".github/workflows/integration.yml"]
+  pull_request:
+    paths: ["integration/**", ".github/workflows/integration.yml"]
+jobs:
+  contracts:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - run: PYTHONPATH=integration python -m unittest discover -s integration/tests -v
+      - run: docker build --target contracts -f integration/containers/Dockerfile -t dealiix-contracts-test .
+      - run: docker run --rm dealiix-contracts-test --help

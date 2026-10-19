@@ -1,0 +1,4 @@
+**
+!integration/
+!integration/**
+integration/**/__pycache__/

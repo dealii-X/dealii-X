@@ -1,0 +1,87 @@
+{
+  "version": 1,
+  "date": "2026-10-19",
+  "complete_release_validated": false,
+  "host": "macOS ARM64; installed deal.II 9.8.0-rc1, SUNDIALS 6.7.0; separate Linux amd64 contracts image",
+  "software": {
+    "python_contract_tests": {
+      "passed": 20
+    },
+    "platform": {
+      "tests_passed": 189,
+      "frontend_and_electron_types": "passed",
+      "production_build": "passed"
+    },
+    "coral": {
+      "core_ctests_passed": 54,
+      "installed_plugins_loaded": 10,
+      "native_heart_graph": "passed"
+    },
+    "metric_flow_x": "native build passed with retained patch",
+    "immersx": "native library and Poisson build/run passed",
+    "polydeal": "native library and bbox test passed with retained patch",
+    "4c": "current oxygen header regression and Sacado derivative checks pass with patch; no full candidate build",
+    "psctoolkit": "PSBLAS and PSBLAS-EXT installed; AMG stops missing native omp.h; full CPU/CUDA not validated",
+    "lifex": "native compile fails dimensioned ReferenceCell API",
+    "exabrain": "native compile fails removed shared_ptr/DataOut APIs",
+    "exadg": "alveolar candidate native compile fails ARM64 SIMD fallbacks; group mesh missing"
+  },
+  "numerical": {
+    "adan56": {
+      "scope": "MOX QAV at inlet 0; 77 unrefined segments, 0\u20130.002 s, 31 terminal exports",
+      "inlet_flow_check": {
+        "max_absolute_error_m3_s": 6.203854594147708e-25,
+        "tolerance_m3_s": 1e-12
+      },
+      "idas_error_reports": 2,
+      "full_8_seconds": "prepared, not validated",
+      "conservation_and_convergence": "pending"
+    },
+    "synthetic_metric_serial_max_flow_error_m3_s": 6.8995e-21,
+    "metric_multi_rank": "quantitative inlet mismatch reproduced with both analytic and CSV inputs"
+  },
+  "scientific": {
+    "paper_comparison": "not performed",
+    "organ_cases": "required",
+    "MOX_pressure_datum": "not specified by supplied legend",
+    "MOX_valve_sign": "forward orientation assumption pending group confirmation",
+    "original_0d_compatibility": "pending",
+    "HPC_multinode": "target cluster MPI/PMIx profile required",
+    "CUDA": "not run"
+  },
+  "existing_references": [
+    "https://github.com/luca-heltai/metric-flow-x/issues/10",
+    "https://github.com/2listic/dealiiX-platform/issues/240",
+    "https://github.com/dealii/dealii/issues/20306",
+    "https://github.com/BRAINIACS-Group/ExaBrain/issues/3",
+    "https://github.com/fdrmrc/Polydeal/issues/160",
+    "https://github.com/4C-multiphysics/4C/issues/2354",
+    "https://github.com/sfilippone/psblas3-ext/issues/1",
+    "https://github.com/dealii-X/dealii-X/issues/15"
+  ],
+  "meta_issue": "https://github.com/dealii-X/dealii-X/issues/16",
+  "issues": [
+    "https://github.com/dealii-X/dealii-X/issues/17",
+    "https://github.com/dealii-X/dealii-X/issues/18",
+    "https://github.com/dealii-X/dealii-X/issues/19",
+    "https://github.com/dealii-X/dealii-X/issues/20",
+    "https://github.com/dealii-X/dealii-X/issues/21",
+    "https://github.com/dealii-X/dealii-X/issues/22",
+    "https://github.com/dealii-X/dealii-X/issues/23",
+    "https://github.com/dealii-X/dealii-X/issues/24",
+    "https://github.com/dealii-X/dealii-X/issues/25",
+    "https://github.com/dealii-X/dealii-X/issues/26",
+    "https://github.com/dealii-X/dealii-X/issues/27",
+    "https://github.com/dealii-X/dealii-X/issues/28",
+    "https://github.com/dealii-X/dealii-X/issues/29",
+    "https://github.com/dealii-X/dealii-X/issues/30",
+    "https://github.com/dealii-X/dealii-X/issues/31",
+    "https://github.com/dealii-X/dealii-X/issues/32",
+    "https://github.com/dealii-X/dealii-X/issues/33",
+    "https://github.com/dealii-X/dealii-X/issues/34",
+    "https://github.com/dealii-X/dealii-X/issues/35",
+    "https://github.com/dealii-X/dealii-X/issues/36",
+    "https://github.com/dealii-X/dealii-X/issues/37",
+    "https://github.com/dealii-X/dealii-X/issues/38"
+  ]
+}

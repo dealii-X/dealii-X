@@ -1,0 +1,251 @@
+diff --git a/apps/blood_flow.cc b/apps/blood_flow.cc
+index d19874d..c4cc64a 100644
+--- a/apps/blood_flow.cc
++++ b/apps/blood_flow.cc
+@@ -23,6 +23,7 @@
+ 
+ #include <algorithm>
+ #include <cmath>
++#include <chrono>
+ #include <cstdlib>
+ #include <iostream>
+ #include <limits>
+@@ -63,7 +64,7 @@ namespace MetricFlowX
+           else
+             problem.triangulation_.refine_global(1);
+ 
+-          problem.open_csv_files();
++          problem.open_output_files();
+           if (cycle > 0)
+             {
+               problem.setup_system();
+@@ -308,7 +309,7 @@ namespace MetricFlowX
+ 
+               problem.compute_pressure(sol, problem.pressure_);
+               problem.output_results(sol, problem.pressure_, output_number++);
+-              problem.write_csv_row(t, sol);
++              problem.write_output_step(t, sol);
+ 
+               if (problem.time_interval > 0.0)
+                 {
+@@ -329,9 +330,11 @@ namespace MetricFlowX
+ 
+           problem.solution_dot = 0.0;
+           problem.time         = problem.ida_parameters.initial_time;
++          const auto solve_start = std::chrono::steady_clock::now();
+           ida.solve_dae(problem.solution, problem.solution_dot);
+-
+-          problem.close_csv_files();
++          const double solve_seconds = std::chrono::duration<double>(
++            std::chrono::steady_clock::now() - solve_start).count();
++          problem.finalize_output(ida, solve_seconds);
+           problem.compute_pressure(problem.solution, problem.pressure_);
+           problem.compute_errors(cycle);
+         }
+diff --git a/include/metric_flow_x/blood_flow_system.h b/include/metric_flow_x/blood_flow_system.h
+index a0f0ff5..e90b4ee 100644
+--- a/include/metric_flow_x/blood_flow_system.h
++++ b/include/metric_flow_x/blood_flow_system.h
+@@ -1,3 +1,4 @@
++#include <metric_flow_x/inflow_series.h>
+ #ifndef METRIC_FLOW_X_BLOOD_FLOW_SYSTEM_H
+ #define METRIC_FLOW_X_BLOOD_FLOW_SYSTEM_H
+ 
+@@ -897,6 +898,10 @@ namespace MetricFlowX
+     ParsedTools::Function<spacedim> rhs_function;
+     ParsedTools::Function<spacedim> exact_solution;
+     ParsedTools::Function<1>        inflow_function;
++    InflowSeries inflow_series;
++    std::string inflow_csv_file;
++    double inflow_csv_period = 0.;
++    std::map<unsigned int, std::ofstream> csv_terminal;
+ 
+     // -----------------------------------------------------------------------
+     // CSV time-series output, one file per vessel.
+diff --git a/include/metric_flow_x/inflow_series.h b/include/metric_flow_x/inflow_series.h
+new file mode 100644
+index 0000000..efa693a
+--- /dev/null
++++ b/include/metric_flow_x/inflow_series.h
+@@ -0,0 +1,81 @@
++#ifndef METRIC_FLOW_X_INFLOW_SERIES_H
++#define METRIC_FLOW_X_INFLOW_SERIES_H
++
++#include <algorithm>
++#include <cmath>
++#include <fstream>
++#include <sstream>
++#include <stdexcept>
++#include <string>
++#include <utility>
++#include <vector>
++
++namespace MetricFlowX
++{
++  /** SI inflow data. Linear interpolation, with no implicit extrapolation. */
++  class InflowSeries
++  {
++  public:
++    void read(const std::string &filename, const double period = 0.)
++    {
++      samples.clear();
++      periodicity = period;
++      if (!std::isfinite(period) || period < 0.)
++        throw std::invalid_argument("Inflow period must be finite and nonnegative");
++      std::ifstream input(filename);
++      std::string line;
++      if (!std::getline(input, line))
++        throw std::invalid_argument("Cannot read inflow CSV: " + filename);
++      if (!line.empty() && line.back() == '\r') line.pop_back();
++      if (line != "time_s,flow_m3_s")
++        throw std::invalid_argument("Expected inflow CSV header time_s,flow_m3_s");
++      while (std::getline(input, line))
++        {
++          if (!line.empty() && line.back() == '\r') line.pop_back();
++          std::istringstream row(line);
++          double time, flow;
++          char comma;
++          if (!(row >> time >> comma >> flow) || comma != ',' ||
++              !std::isfinite(time) || !std::isfinite(flow) ||
++              (row >> std::ws && !row.eof()) ||
++              (!samples.empty() && time <= samples.back().first))
++            throw std::invalid_argument("Invalid or unordered inflow CSV row");
++          samples.emplace_back(time, flow);
++        }
++      if (samples.size() < 2)
++        throw std::invalid_argument("Inflow CSV requires at least two samples");
++      if (period > 0. &&
++          (std::abs(samples.back().first - samples.front().first - period) > 1e-10 * period ||
++           std::abs(samples.front().second - samples.back().second) >
++             1e-14 + 1e-8 * std::abs(samples.front().second)))
++        throw std::invalid_argument("Periodic inflow must span one closed period");
++    }
++
++    bool empty() const { return samples.empty(); }
++
++    double value(double time) const
++    {
++      if (samples.empty() || !std::isfinite(time))
++        throw std::invalid_argument("Invalid inflow evaluation");
++      if (periodicity > 0. && (time < samples.front().first || time > samples.back().first))
++        {
++          double phase = std::fmod(time - samples.front().first, periodicity);
++          if (phase < 0.) phase += periodicity;
++          time = samples.front().first + phase;
++        }
++      if (time < samples.front().first || time > samples.back().first)
++        throw std::out_of_range("Inflow extrapolation is forbidden");
++      auto right = std::upper_bound(samples.begin(), samples.end(), time,
++        [](double t, const auto &sample) { return t < sample.first; });
++      if (right == samples.end()) return samples.back().second;
++      const auto &a = *(right - 1);
++      const auto &b = *right;
++      return a.second + (b.second - a.second) * ((time - a.first) / (b.first - a.first));
++    }
++
++  private:
++    std::vector<std::pair<double, double>> samples;
++    double periodicity = 0.;
++  };
++}
++#endif
+diff --git a/source/blood_flow_system.cc b/source/blood_flow_system.cc
+index a8dc2c7..ccb7aa2 100644
+--- a/source/blood_flow_system.cc
++++ b/source/blood_flow_system.cc
+@@ -157,6 +157,8 @@ namespace MetricFlowX
+     add_parameter("Use junction mesh", use_junction_mesh);
+     add_parameter("Outlet boundary condition type", outlet_type);
+     add_parameter("Vtk file path for mesh input", vtk_file_path);
++    add_parameter("Inflow CSV file", inflow_csv_file);
++    add_parameter("Inflow CSV period", inflow_csv_period);
+ 
+     this->enter_subsection("IDA parameters");
+     this->enter_my_subsection(this->prm);
+@@ -199,6 +201,12 @@ namespace MetricFlowX
+     exact_solution.update_constants(par);
+     rhs_function.update_constants(par);
+     inflow_function.update_constants(par);
++    if (!inflow_csv_file.empty())
++      {
++        inflow_series.read(inflow_csv_file, inflow_csv_period);
++        inflow_series.value(ida_parameters.initial_time);
++        inflow_series.value(ida_parameters.final_time);
++      }
+ 
+     if (numerical_flux_type_str == "HLL")
+       numerical_flux_type = NumericalFluxType::HLL;
+@@ -1675,6 +1683,30 @@ namespace MetricFlowX
+ 
+     close_csv_files();
+     csv_vessel.clear();
++    csv_terminal.clear();
++    std::vector<unsigned int> local_terminal_ids;
++    for (const auto &cell : dof_handler_.active_cell_iterators())
++      if (cell->is_locally_owned())
++        for (unsigned int f = 0; f < GeometryInfo<dim>::faces_per_cell; ++f)
++          if (cell->face(f)->at_boundary() && !is_junction_face(cell->id(), f))
++            local_terminal_ids.push_back(cell->face(f)->boundary_id());
++    std::map<unsigned int, unsigned int> terminal_counts;
++    for (const auto &ids : Utilities::MPI::all_gather(mpi_communicator_, local_terminal_ids))
++      for (const auto id : ids) ++terminal_counts[id];
++    for (const auto &entry : terminal_counts)
++      AssertThrow(entry.second == 1, ExcMessage("Terminal boundary ids must be globally unique"));
++    for (const auto &cell : dof_handler_.active_cell_iterators())
++      if (cell->is_locally_owned())
++        for (unsigned int f = 0; f < GeometryInfo<dim>::faces_per_cell; ++f)
++          if (cell->face(f)->at_boundary() && !is_junction_face(cell->id(), f))
++            {
++              const auto bid = cell->face(f)->boundary_id();
++              auto &os = csv_terminal[bid];
++              AssertThrow(!os.is_open(), ExcMessage("Duplicate terminal boundary id"));
++              os.open(dir + "terminal_" + std::to_string(bid) + ".csv");
++              AssertThrow(os.good(), ExcMessage("Cannot open terminal CSV"));
++              os << "time_s,pressure_Pa,flow_m3_s,boundary_id,vessel_id\n";
++            }
+     probe_targets.clear();
+ 
+     const std::string hdr = "time_s,P_dynpcm2,Q_cm3ps,A_cm2,U_cmps\n";
+@@ -1739,6 +1771,23 @@ namespace MetricFlowX
+   BloodFlowSystem<dim, spacedim>::write_csv_row(const double      t,
+                                                 const VectorType &sol)
+   {
++    for (const auto &cell : dof_handler_.active_cell_iterators())
++      if (cell->is_locally_owned())
++        for (unsigned int f = 0; f < GeometryInfo<dim>::faces_per_cell; ++f)
++          if (cell->face(f)->at_boundary() && !is_junction_face(cell->id(), f))
++            {
++              const auto bid = cell->face(f)->boundary_id();
++              double area = 0., velocity = 0.;
++              get_face_trace(sol, cell, f, area, velocity);
++              const auto point = cell->face(f)->center();
++              const double pressure = compute_physical_pressure(area,
++                cell->material_id(), compute_a_d_at_face(cell, f), t, point, cell->id());
++              auto &os = csv_terminal.at(bid);
++              os << std::setprecision(17) << t << ',' << pressure << ','
++                 << (f == 0 ? -1. : 1.) * area * velocity << ','
++                 << bid << ',' << cell->material_id() << '\n';
++              os.flush();
++            }
+     const unsigned int dofs_per_cell = fe_->n_dofs_per_cell();
+ 
+     // Reference-cell midpoint (DGQ, dim == 1 -> xi = 0.5).
+@@ -1789,6 +1838,9 @@ namespace MetricFlowX
+     for (auto &kv : csv_vessel)
+       if (kv.second.is_open())
+         kv.second.close();
++    for (auto &kv : csv_terminal)
++      if (kv.second.is_open())
++        kv.second.close();
+   }
+ 
+   // ============================================================================
+@@ -2576,7 +2628,7 @@ namespace MetricFlowX
+             if (bid == 0) // inflow
+               {
+                 inflow_function.set_time(t);
+-                const double Q_in   = inflow_function.value(Point<1>(0.0));
++                const double Q_in   = (inflow_series.empty() ? inflow_function.value(Point<1>(0.0)) : inflow_series.value(t));
+                 const double W2_int = U_int - 4.0 * (c_int - c0);
+ 
+                 res_A = A_hat_cur * U_hat_cur - Q_in;

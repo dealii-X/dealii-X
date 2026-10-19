@@ -1,0 +1,6 @@
+{
+  "version": 1,
+  "release_url": "https://github.com/dealii-X/dealii-X/releases/download/assets",
+  "manifest": "assets-manifest.json",
+  "archive": "assets.zip"
+}

@@ -1,2 +1,9 @@
 .aider*
 .env
+/build/
+/.venv_docs/
+__pycache__/
+*.pyc
+/assets/
+!/integration/dealiix/build.py
+!/integration/containers/build-psctoolkit.sh
