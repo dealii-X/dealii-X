@@ -1,5 +1,9 @@
 # Integration blockers requiring group or upstream action
 
+Historical aggregate: central issue #15 is superseded by the active, specific
+lifeX/ExaDG issues #24, #25 and #26. The requirements below remain tracked there;
+closing the aggregate does not establish scientific or numerical completion.
+
 ## exadg
 
 ## Confirmed integration blockers on alveolar-model

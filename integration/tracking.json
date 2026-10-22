@@ -26,7 +26,8 @@
       "target": "dealii/dealii",
       "url": "https://github.com/dealii-X/dealii-X/issues/19",
       "patch": null,
-      "status": "open"
+      "status": "completed",
+      "resolution": "Upstream PR #20307 merged at 8122d681; distribution validation remains #34"
     },
     {
       "id": "platform-port",
@@ -41,8 +42,9 @@
       "title": "Polydeal: upstream explicit quadrature includes and verify examples",
       "target": "fdrmrc/Polydeal",
       "url": "https://github.com/dealii-X/dealii-X/issues/21",
-      "patch": "integration/patches/polydeal.patch",
-      "status": "open"
+      "patch": null,
+      "status": "completed",
+      "resolution": "Upstream PR #161 at 1120f5de; clean native library/bbox test passed, patch removed"
     },
     {
       "id": "4c-port",
@@ -190,5 +192,22 @@
       "resolution": "Merged into upstream main by PR #28; replay patch removed"
     }
   ],
-  "pull_request": "https://github.com/dealii-X/dealii-X/pull/39"
+  "pull_request": "https://github.com/dealii-X/dealii-X/pull/39",
+  "issue_audit": {
+    "date": "2026-10-22",
+    "closed_completed": [
+      2,
+      7,
+      19,
+      21
+    ],
+    "closed_superseded": {
+      "15": [
+        24,
+        25,
+        26
+      ]
+    },
+    "remaining_work": "Open component/scientific/distribution issues retain their acceptance gates"
+  }
 }

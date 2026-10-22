@@ -1,9 +1,0 @@
-diff --git a/include/utils.h b/include/utils.h
-index a650f30..5287807 100644
---- a/include/utils.h
-+++ b/include/utils.h
-@@ -1,3 +1,4 @@
-+#include <deal.II/base/quadrature_lib.h>
- // -----------------------------------------------------------------------------
- //
- // SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception OR LGPL-2.1-or-later

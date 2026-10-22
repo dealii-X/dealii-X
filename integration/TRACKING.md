@@ -8,9 +8,9 @@ All coordination issues live in this repository. Status checked on 2026-10-22.
 | --- | --- | --- | --- |
 | completed | [MetricFlowX: port CSV inlet and terminal-trace patches upstream](https://github.com/dealii-X/dealii-X/issues/17) | luca-heltai/metric-flow-x | — |
 | completed | [MetricFlowX: fix multi-rank inlet constraint/IDA discrepancy](https://github.com/dealii-X/dealii-X/issues/18) | luca-heltai/metric-flow-x | — |
-| open | [deal.II: resolve empty-rank SUNDIALS NVector minimum failure](https://github.com/dealii-X/dealii-X/issues/19) | dealii/dealii | — |
+| completed | [deal.II: resolve empty-rank SUNDIALS NVector minimum failure](https://github.com/dealii-X/dealii-X/issues/19) | dealii/dealii | — |
 | open | [dealiiX-platform: port per-stage profiles and named artifacts upstream](https://github.com/dealii-X/dealii-X/issues/20) | 2listic/dealiiX-platform | integration/patches/platform.patch |
-| open | [Polydeal: upstream explicit quadrature includes and verify examples](https://github.com/dealii-X/dealii-X/issues/21) | fdrmrc/Polydeal | integration/patches/polydeal.patch |
+| completed | [Polydeal: upstream explicit quadrature includes and verify examples](https://github.com/dealii-X/dealii-X/issues/21) | fdrmrc/Polydeal | — |
 | open | [4C: upstream positive oxygen inversion and Sacado derivative fix](https://github.com/dealii-X/dealii-X/issues/22) | 4C-multiphysics/4C | integration/patches/4c.patch |
 | open | [ExaBrain: modernize deal.II APIs and port portable compiler flags upstream](https://github.com/dealii-X/dealii-X/issues/23) | BRAINIACS-Group/ExaBrain | integration/patches/exabrain.patch |
 | open | [lifeX: resolve deal.II compatibility and identify the complete MOX model](https://github.com/dealii-X/dealii-X/issues/24) | gitlab.com/lifex/lifex-public | — |
@@ -31,3 +31,5 @@ All coordination issues live in this repository. Status checked on 2026-10-22.
 | completed | [MetricFlowX: consolidate merged PR stack into main and retire integration replay patch](https://github.com/dealii-X/dealii-X/issues/40) | luca-heltai/metric-flow-x | — |
 
 MetricFlowX PR #28 consolidates #22/#23 into main `77cc1d7239ef015a1dcf73cb408a0cfb3ece9fe2` while preserving the earlier SI dataset, ADAN56 area and tolerance fixes. The global PR now uses this commit directly; the MetricFlowX integration patch has been removed. #17, #18 and #40 are complete.
+
+Further audit: #19 is resolved by deal.II PR #20307 (candidate `8122d681`); #21 by Polydeal PR #161 (pin `1120f5de`, no patch). Legacy setup #2 and MUMPS modernization #7 are complete; aggregate #15 is superseded by #24–#26. Complete source/distribution verification remains #34/#36.

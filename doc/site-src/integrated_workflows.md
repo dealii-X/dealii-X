@@ -31,7 +31,7 @@ Verified locally:
 - native MetricFlowX Release compilation, seven focused CTests and actual
   analytic/CSV inlet and terminal comparisons at one and two MPI ranks;
 - current ImmersX library and Poisson application compilation;
-- Polydeal compilation with the retained include patch and an existing test.
+- clean upstream Polydeal compilation and the existing bbox test, with no local patch;
 - external MOX CSV import and a serial ADAN56 smoke run with all 31 terminal exports.
 
 ExaBrain and lifeˣ require source compatibility work. The alveolar ExaDG branch
@@ -265,10 +265,12 @@ python3 integration/tests/verify_inlet.py \
   build/integration/native-run/stage-circulation/output/terminal_0.csv
 ```
 
-The tiny fixture uses tight IDA tolerances and HLL_HDG. The one-cell/two-rank
-setup encounters an empty-rank SUNDIALS defect. A larger distributed mesh avoids
-that crash, but quantitative serial/MPI equivalence still requires resolution.
-The diagnostic script fails if the prescribed inlet is not reproduced.
+The tiny fixture uses tight IDA tolerances and HLL_HDG. The earlier empty-rank
+SUNDIALS defect is fixed by deal.II PR #20307; the source candidate is updated to
+its merged revision `8122d681`. Rebuilding/validating the common distribution
+remains #34. The separate small-case serial/two-rank analytic/CSV comparison
+passes with current MetricFlowX. The diagnostic script rejects an incorrect inlet;
+full ADAN56 parallel/conservation validation remains #33.
 
 ## CLI stages and artifact handoff
 

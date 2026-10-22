@@ -328,3 +328,24 @@ by the presence of a recipe.
   The complete-release, eight-second and physiological gates remain open.
 - Re-ran 21 Python integration tests, the Linux amd64 contracts image and the
   documentation build. Original dirty application checkouts remain untouched.
+
+### 17. Audit and close resolved or superseded central issues
+
+- Audited all open central issues against their acceptance criteria and current
+  upstream merge/CI evidence. Closed setup #2 and MUMPS modernization #7 as
+  completed; verified upstream MUMPS vector/options and BLR regression coverage.
+- Closed aggregate #15 as superseded, with explicit links retaining its unresolved
+  requirements in #24–#26. Component data, build, numerical and release tasks
+  with outstanding acceptance gates remain open.
+- Closed #19 after confirming deal.II PR #20307 merged with the empty-rank
+  regression and MPI CI. Advanced the source candidate to its merge commit
+  `8122d681995b6baf254bcab3c943e9b0ef4c5870`; full common-distribution build/freeze
+  remains #34, so the deal.II gitlink is not declared validated or advanced.
+- Closed #21 after confirming Polydeal PR #161 and upstream Linux Debug/Release
+  CI. Built its clean merge revision `1120f5dec15368fbacdcdb10100043dd170cecf1`
+  locally and passed `polydeal/agg_handler_bbox_test.release`. Updated the PR's
+  Polydeal pin/gitlink and removed the obsolete quadrature include patch.
+- Synchronized the component index, validation record, central meta-tracker and
+  PR follow-up checklist; preserved the original dirty application checkouts.
+- Verification after the audit: all 21 Python integration tests pass, the clean
+  Polydeal bbox regression passes, and `./scripts/build_doc.sh` succeeds.

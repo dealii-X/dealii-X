@@ -18,8 +18,9 @@
       "validation": "not-run",
       "data_status": "group-case-required",
       "working_tree_dirty": false,
-      "candidate_sha": "277db41b30001c2b72ffd07be98ff39906d52630",
-      "candidate_origin": "remote-query"
+      "candidate_sha": "8122d681995b6baf254bcab3c943e9b0ef4c5870",
+      "candidate_origin": "merged upstream PR #20307; empty-rank SUNDIALS fix, distribution build pending #34",
+      "upstream_fix": "https://github.com/dealii/dealii/pull/20307"
     },
     {
       "name": "lifex",
@@ -143,12 +144,12 @@
       "dependencies": [
         "dealii"
       ],
-      "checkout_sha": "cbe36e666e2ae585f2a78b7332abe95764ac7f5f",
-      "validation": "not-run",
+      "checkout_sha": "1120f5dec15368fbacdcdb10100043dd170cecf1",
+      "validation": "upstream Linux compile/Debug/Release CI passed; clean native ARM64 Release library and bbox regression passed",
       "data_status": "group-case-required",
       "working_tree_dirty": false,
-      "candidate_sha": "d0468cc4e07380898c0df65d692c05a5a22a3110",
-      "candidate_origin": "remote-query"
+      "candidate_sha": "1120f5dec15368fbacdcdb10100043dd170cecf1",
+      "candidate_origin": "upstream PR #161 merged, clean source; include workaround retired"
     },
     {
       "name": "platform",
