@@ -40,7 +40,7 @@ def prepare(manifest, source, destination, final_time=8., refinements=5):
     text = text.replace("# Derived from inflow.txt using a Fourier-series fit of the supporting-data waveform",
                         "# Cardiac waveform supplied by Inflow CSV file at inlet boundary 0.")
     text = text.replace("subsection MetricFlowSystem<1, 3>",
-                        "subsection MetricFlowSystem<1, 3>\n  set Inflow CSV file = inflow.csv\n  set Inflow CSV period = 0", 1)
+                        "subsection MetricFlowSystem<1, 3>\n  set Write terminal CSV files = true\n  set Inflow CSV file = inflow.csv\n  set Inflow CSV period = 0", 1)
     write_inflow(manifest, "Q", root / "inflow.csv")
     (root / "case.prm").write_text(text)
     receipt = {"network": "ADAN56", "inlet_boundary_id": 0, "terminal_boundary_ids": list(range(1, 32)),

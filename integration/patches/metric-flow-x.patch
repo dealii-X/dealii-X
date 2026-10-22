@@ -1,80 +1,472 @@
+diff --git a/.github/workflows/indentation.yml b/.github/workflows/indentation.yml
+index d62b06d..6019a81 100644
+--- a/.github/workflows/indentation.yml
++++ b/.github/workflows/indentation.yml
+@@ -4,7 +4,6 @@ on:
+   push:
+     branches: [main]
+   pull_request:
+-    branches: [main]
+ 
+ jobs:
+   indent:
+diff --git a/.github/workflows/tests.yml b/.github/workflows/tests.yml
+index bba5e07..662eaca 100644
+--- a/.github/workflows/tests.yml
++++ b/.github/workflows/tests.yml
+@@ -4,7 +4,6 @@ on:
+   push:
+     branches: [main]
+   pull_request:
+-    branches: [main]
+ 
+ jobs:
+   datasets:
+@@ -41,6 +40,7 @@ jobs:
+           cmake --build build -j 2
+           ctest --test-dir build -N
+           ctest --test-dir build --no-tests=error --output-on-failure
++          python3 tests/test_inflow_integration.py --executable build/blood_flow --mpi
+       - name: Check dual-variant installation and downstream consumers
+         if: matrix.build_type == 'DebugRelease'
+         run: |
+diff --git a/CMakeLists.txt b/CMakeLists.txt
+index d825481..3c6b49c 100644
+--- a/CMakeLists.txt
++++ b/CMakeLists.txt
+@@ -43,6 +43,7 @@ endforeach()
+ 
+ set(METRIC_FLOW_X_SOURCES
+   source/blood_flow_system.cc
++  source/inflow_series.cc
+   source/io/vtk_utils.cc
+   source/parsed_tools/constants.cc
+   source/parsed_tools/function.cc
+@@ -61,6 +62,8 @@ foreach(_variant IN LISTS METRIC_FLOW_X_BUILD_TYPES)
+   target_include_directories(${_library} PUBLIC
+     $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include>
+     $<INSTALL_INTERFACE:${CMAKE_INSTALL_INCLUDEDIR}>)
++  target_include_directories(${_library} SYSTEM PRIVATE
++    "${CMAKE_CURRENT_SOURCE_DIR}/third_party/rapidcsv")
+   deal_ii_setup_target(${_library} ${_variant_upper})
+   set_target_properties(${_library} PROPERTIES EXPORT_NAME metric_flow_x_${_variant})
+ 
+diff --git a/README.md b/README.md
+index a7fabda..3a6572b 100644
+--- a/README.md
++++ b/README.md
+@@ -172,11 +172,146 @@ observables without using ImmersX.
+ The formulation and derivation remain documented in `doc/math.md` and
+ `latex/blood_flow.tex`.
+ 
++Terminal RCR and inflow CSV input use the vendored header-only
++[rapidcsv v9.07](https://github.com/d99kris/rapidcsv/tree/v9.07) dependency;
++see `third_party/rapidcsv/README.md` for provenance and its BSD 3-Clause license.
++No extra package or network download is needed to build the CSV reader.
++
+ ## License
+ 
+ This project is licensed under the MIT License (see `LICENSE.md`).
+ 
+ 
++### Terminal RCR defaults and CSV overrides
++
++Existing parameter files keep `Terminal parameter source = VTK`: terminal R1,
++R2, C and P_out are read from the mesh exactly as before. To migrate explicitly,
++set the following in `MetricFlowSystem<1, 3>`:
++
++```text
++set Terminal parameter source = Parameters
++set Default terminal R1 = 2e7
++set Default terminal R2 = 3e7
++set Default terminal C = 0
++set Default terminal P_out = 0
++set Terminal parameters CSV file = terminals.csv
++```
++
++CSV columns are selected by their case-sensitive names, in any order:
++
++- `boundary_id` is required and must uniquely identify an actual terminal.
++- `R1`, `R2`, and `C` are optional. Each missing column or empty/whitespace-only
++  cell uses the corresponding parameter-file default. At least one of these
++  column names, or `label`, must be present, so a different kind of data file
++  is not silently accepted as terminal configuration.
++- `label` is an optional terminal name. A missing column or blank cell uses
++  `boundary_<boundary_id>` (for example, `boundary_2`), matching the existing
++  numeric terminal identity. Labels may contain spaces, commas, quotes, or
++  quoted line breaks; they are metadata and need not be unique. A file with
++  only `boundary_id,label` can name terminals while using all RCR defaults.
++- Additional named columns are ignored; they may contain arbitrary metadata or
++  measurements, including quoted commas and line breaks.
++
++For example, with the defaults above:
++
++```{csv-table}
++:header-rows: 1
++
++label,R2,boundary_id,C
++outlet_b,4e7,2,
++```
++
++Terminal 2 is named `outlet_b` and receives R1=2e7, R2=4e7, C=0. Omitted terminal IDs use all defaults;
++with no CSV configured, every terminal uses the defaults. Headers must be
++nonempty and unique, and every data row must have the same number of cells as
++the header (use explicit empty cells for defaults). Nonempty numeric cells must
++contain a complete valid number; `NaN`, infinity and invalid final RCR values
++are rejected. Duplicate or unknown boundary IDs are errors.
++
++Output `network_terminals.csv` records the effective `boundary_id`,
++`vessel_id`, `label`, `R1`, `R2`, `C`, and `P_out` for each terminal. Vessel
++probe files carry a `boundary_<id>_label` column for each terminal connected to
++that vessel. Existing probe filenames keep their numeric vessel IDs; labels
++never become filesystem paths. Visualization files include `vessel_id` cell
++data, which links them to the terminal table. Global mass and timing summaries
++retain their aggregate columns.
++
++All solver CSV output uses Rapidcsv for quoting and escaping. Records are
++written progressively, with round-trip precision for double values and a
++locale-independent decimal point.
++
++Resistances are in Pa*s/m3, compliance in m3/Pa, and P_out in Pa. P_out remains
++the global default in Parameters mode; CSV rows do not override it. VTK mode
++preserves existing per-terminal P_out values. No units, pressure datum or flow
++sign convention are inferred from unused columns.
++
++This is a constant-parameter table, with one row per terminal, not a time-series
++reader. Future prescribed pressure/flow series should have a separate schema
++with `boundary_id` and `time_s`, explicit units and driving-variable selection,
++strictly increasing times per terminal, and explicit interpolation, coverage
++and periodicity policies. External-file adapters can map column names and units
++to that contract while retaining other columns as unused data.
++
++Parameters mode requires geometry, vessel fields and boundary IDs in VTK, but
++no R1/R2/C/P_out arrays. Actual graph endpoints identify terminals, excluding
++junctions and inlet boundary 0. CSV IDs must identify these terminals uniquely;
++unreadable/malformed files, duplicate/unknown IDs, nonfinite or invalid physical
++values cause an error. A configured CSV requires Parameters mode. Each C>0
++terminal gets one capacitor unknown across MPI ranks; C=0 gets none and uses
++the series resistance R1+R2 (PR #18).
++
++Geometry and arrays now share one VTK reader per rank. On lnx3 with GCC 13.2,
++deal.II 9.8.0 and the 20001-cell, degree-1 SI 10k tree, the measured setup time
++fell from 3.697 s to 1.340 s in a paired run. Whole-process peak RSS, including
++subsequent assembly, was 657904/656936 KiB; this is not a measurement of memory
++per initialization phase. Nonzero-state residual norms/checksums agree, and
++CSV/legacy residuals and both Jacobian blocks are regression-tested with one
++and two ranks. Rank-zero reading/distribution remains a profiling follow-up;
++each rank currently loads one dataset.
++
++### Tabulated inflow and terminal traces
++
++In `MetricFlowSystem<1, 3>`, set `Inflow CSV file` to a CSV containing the
++case-sensitive columns `time_s` and `flow_m3_s`, in any order. Additional named
++columns are ignored and may hold arbitrary metadata. Headers must be nonempty
++and unique; every row must match the header width. The shared rapidcsv reader
++accepts quoted fields, quoted commas/newlines, UTF-8 BOM and CRLF. Required
++fields must contain complete, finite numeric values in seconds and m3/s, with
++strictly increasing times. At least two samples are required. Piecewise linear
++interpolation replaces the analytic inlet only when this file is configured.
++Both ends of the simulation interval must be covered; extrapolation is an error.
++Paths are relative to the run directory, as for the existing mesh path.
++
++`Inflow CSV period` defaults to zero (no repetition). A positive value explicitly
++repeats one complete cycle; the file must span exactly that period and have
++matching endpoint flows. No cardiac period or flow-sign convention is inferred.
++Only inlet flow is prescribed. Any cardiac pressure history remains a comparison
++signal.
++
++Set `Write terminal CSV files = true` to export `terminal_<boundary_id>.csv` in
++the output directory. The fields are `time_s,pressure_Pa,flow_m3_s,boundary_id,vessel_id,label`.
++`label` comes from the terminal parameter CSV and defaults to `boundary_<id>`;
++the inlet uses `boundary_0`. Rapidcsv quotes and escapes arbitrary label text.
++Pressure and velocity/area come from the boundary trace, including prescribed
++external pressure. Flow is outward: negative at a conventionally oriented inlet
++and positive at an outlet. Each boundary ID must identify exactly one terminal;
++only its owning MPI rank writes the file. Existing midpoint probe CSVs retain
++their original names and units.
++
++The PETSc direct path uses MUMPS when available and native serial LU otherwise.
++Native serial LU reorders for a nonzero diagonal before factorization.
++Parallel direct runs require PETSc built with MUMPS. Set `Use direct solver = false`
++for parallel GMRES with block Jacobi; local ILU shifts address zero pivots in DAE
++subdomain blocks and can be overridden through PETSc options. This also applies
++to trace initialization. A missing PETSc MUMPS backend must never produce an
++unchanged solution while reporting a successful direct solve.
++
++Validation uses a synthetic triangular waveform at one and two ranks, compares
++CSV with the equivalent analytic inlet, checks nonzero prescribed flow, and
++compares terminal pressure/flow within solver tolerance. It does not establish
++MOX pressure datum, valve sign, cardiac period, RCR compatibility or a complete
++physiological cardiac cycle.
++
+ ### svVascularize units
+ 
+ The solver consumes SI geometry, area and flow. Convert trusted tree archives
 diff --git a/apps/blood_flow.cc b/apps/blood_flow.cc
-index d19874d..c4cc64a 100644
+index 140245e..f69898a 100644
 --- a/apps/blood_flow.cc
 +++ b/apps/blood_flow.cc
-@@ -23,6 +23,7 @@
- 
- #include <algorithm>
- #include <cmath>
-+#include <chrono>
- #include <cstdlib>
- #include <iostream>
- #include <limits>
-@@ -63,7 +64,7 @@ namespace MetricFlowX
+@@ -63,13 +63,13 @@ namespace MetricFlowX
            else
              problem.triangulation_.refine_global(1);
  
 -          problem.open_csv_files();
-+          problem.open_output_files();
            if (cycle > 0)
              {
                problem.setup_system();
-@@ -308,7 +309,7 @@ namespace MetricFlowX
- 
-               problem.compute_pressure(sol, problem.pressure_);
-               problem.output_results(sol, problem.pressure_, output_number++);
--              problem.write_csv_row(t, sol);
-+              problem.write_output_step(t, sol);
- 
-               if (problem.time_interval > 0.0)
-                 {
-@@ -329,9 +330,11 @@ namespace MetricFlowX
- 
+               problem.initialize_terminal_capacitors();
+               problem.build_per_cell_mass_inv();
+             }
++          problem.open_csv_files();
+           problem.initialize_state(problem.solution,
+                                    problem.ida_parameters.initial_time);
+           problem.initialize_state_derivative(
+@@ -239,9 +239,27 @@ namespace MetricFlowX
+             if (problem.use_direct_solver)
+               {
+ #ifdef USE_PETSC_LA
++#  ifdef DEAL_II_PETSC_WITH_MUMPS
+                 problem.direct_solver =
+                   std::make_unique<PETScWrappers::SparseDirectMUMPS>(
+                     problem.direct_solver_control);
++#  else
++                AssertThrow(
++                  problem.n_mpi_processes == 1,
++                  ExcMessage(
++                    "Parallel direct solves require PETSc with MUMPS. Set Use direct solver = false."));
++                problem.direct_lu =
++                  std::make_unique<PETScWrappers::PreconditionLU>(
++                    problem.linear_system_matrix);
++                // Inflow trace rows can have a zero diagonal at rest.
++                const PetscErrorCode error = PCFactorReorderForNonzeroDiagonal(
++                  problem.direct_lu->get_pc(),
++                  PETScWrappers::PreconditionLU::AdditionalData().zero_pivot);
++                AssertThrow(error == 0,
++                            ExcMessage(
++                              "Cannot reorder the native PETSc LU diagonal."));
++
++#  endif
+ #else
+                 problem.direct_solver =
+                   std::make_unique<TrilinosWrappers::SolverDirect>(
+@@ -252,9 +270,9 @@ namespace MetricFlowX
+             else
+               {
+                 problem.ilu_preconditioner =
+-                  std::make_unique<LA::MPI::PreconditionILU>();
+-                problem.ilu_preconditioner->initialize(
+-                  problem.linear_system_matrix);
++                  std::make_unique<typename Problem::IterativePreconditioner>();
++                problem.initialize_iterative_preconditioner(
++                  *problem.ilu_preconditioner, problem.linear_system_matrix);
+               }
+             return 0;
+           };
+@@ -268,9 +286,13 @@ namespace MetricFlowX
+             if (problem.use_direct_solver)
+               {
+ #ifdef USE_PETSC_LA
++#  ifdef DEAL_II_PETSC_WITH_MUMPS
+                 problem.direct_solver->solve(problem.linear_system_matrix,
+                                              z,
+                                              r);
++#  else
++                problem.direct_lu->vmult(z, r);
++#  endif
+ #else
+                 problem.direct_solver->solve(z, r);
+ #endif
+@@ -341,7 +363,6 @@ namespace MetricFlowX
            problem.solution_dot = 0.0;
            problem.time         = problem.ida_parameters.initial_time;
-+          const auto solve_start = std::chrono::steady_clock::now();
            ida.solve_dae(problem.solution, problem.solution_dot);
 -
--          problem.close_csv_files();
-+          const double solve_seconds = std::chrono::duration<double>(
-+            std::chrono::steady_clock::now() - solve_start).count();
-+          problem.finalize_output(ida, solve_seconds);
+           problem.close_csv_files();
            problem.compute_pressure(problem.solution, problem.pressure_);
            problem.compute_errors(cycle);
-         }
+diff --git a/doc/Doxyfile b/doc/Doxyfile
+index e50e31c..bf4728a 100644
+--- a/doc/Doxyfile
++++ b/doc/Doxyfile
+@@ -992,8 +992,7 @@ WARN_LOGFILE           =
+ # Note: If this tag is empty the current directory is searched.
+ 
+ INPUT                  = ./source \
+-                         ./include \
+-                         ./README.md
++                         ./include
+ 
+ # This tag can be used to specify the character encoding of the source files
+ # that Doxygen parses. Internally Doxygen uses the UTF-8 encoding. Doxygen uses
+@@ -1209,7 +1208,7 @@ FILTER_SOURCE_PATTERNS =
+ # (index.html). This can be useful if you have a project on for instance GitHub
+ # and want to reuse the introduction page also for the Doxygen output.
+ 
+-USE_MDFILE_AS_MAINPAGE = ./README.md
++USE_MDFILE_AS_MAINPAGE =
+ 
+ # If the IMPLICIT_DIR_DOCS tag is set to YES, any README.md file found in sub-
+ # directories of the project's root, is used as the documentation for that sub-
+diff --git a/doc/outputs.md b/doc/outputs.md
+index e2956e3..ccf0f25 100644
+--- a/doc/outputs.md
++++ b/doc/outputs.md
+@@ -10,7 +10,7 @@ At each IDA output callback, deal.II `DataOut` writes parallel visualization rec
+ - a `.pvtu` record describing the pieces;
+ - a `.pvd` time-series file using the configured output base name.
+ 
+-The visualization vectors include the FE-range solution and computed pressure fields. The exact piece suffixes are produced by deal.II and include the output cycle and MPI rank.
++The visualization vectors include the FE-range solution and computed pressure fields, plus `vessel_id` cell data for joining with terminal metadata. The exact piece suffixes are produced by deal.II and include the output cycle and MPI rank.
+ 
+ ## Vessel CSV probes
+ 
+@@ -22,6 +22,37 @@ HDG_IDA_Vessel_<vessel-id>.csv
+ 
+ Rows are appended at IDA output times. The header and columns are emitted by `BloodFlowSystem::open_csv_files()`/`BloodFlowSystem::write_csv_row()` in `source/blood_flow_system.cc`; consumers should treat them as implementation output rather than a stable file-format contract.
+ 
++## Terminal names and effective parameters
++
++`network_terminals.csv` contains one row per terminal with `boundary_id`,
++`vessel_id`, `label`, `R1`, `R2`, `C`, and `P_out` (physical values in SI).
++The optional input CSV column `label` supplies the name; a missing or blank
++label defaults to `boundary_<boundary_id>`. In VTK mode the same default is
++used. Boundary and vessel IDs remain the keys, so labels need not be unique.
++
++Each vessel probe also includes a `boundary_<id>_label` column for every
++terminal connected to that vessel. A vessel with no terminal retains its five
++numeric columns. Probe filenames keep the existing numeric vessel ID, so
++arbitrary label text cannot alter output paths. Visualization `vessel_id` cell
++data links to the terminal table. Global mass, solver statistics, and timing
++summaries retain their aggregate schemas.
++
++All C++ solver CSV writers use Rapidcsv, including probes, terminal metadata,
++`mass_conservation.csv`, `ida_statistics.csv`, and `scaling_timings.csv`.
++Commas, quotes, and line breaks in text fields are quoted and escaped by the
++library. Each record is flushed progressively with bounded memory; double
++values use round-trip precision and a locale-independent decimal point.
++Statistics and timings append to existing files, writing a header when the
++file is absent or empty. Python tools use the Python CSV library.
++
++## Terminal time series
++
++With `Write terminal CSV files = true`, `terminal_<boundary_id>.csv` records
++`time_s,pressure_Pa,flow_m3_s,boundary_id,vessel_id,label`. The optional input
++label is carried in each record; unnamed boundaries use `boundary_<id>`,
++including `boundary_0` at the inlet. Rapidcsv handles quoting and escaping.
++Numeric filenames and ID columns remain the stable keys.
++
+ ## Logs and parameter receipt
+ 
+ `ParameterAcceptor::initialize()` writes `last_used_parameters.prm` after reading the input. deal.II logging is controlled by `Verbosity (console depth)`, and rank zero is the visible writer in the MPI run.
 diff --git a/include/metric_flow_x/blood_flow_system.h b/include/metric_flow_x/blood_flow_system.h
-index a0f0ff5..e90b4ee 100644
+index 29e050f..8254b4c 100644
 --- a/include/metric_flow_x/blood_flow_system.h
 +++ b/include/metric_flow_x/blood_flow_system.h
-@@ -1,3 +1,4 @@
-+#include <metric_flow_x/inflow_series.h>
- #ifndef METRIC_FLOW_X_BLOOD_FLOW_SYSTEM_H
- #define METRIC_FLOW_X_BLOOD_FLOW_SYSTEM_H
+@@ -51,6 +51,7 @@
  
-@@ -897,6 +898,10 @@ namespace MetricFlowX
-     ParsedTools::Function<spacedim> rhs_function;
-     ParsedTools::Function<spacedim> exact_solution;
-     ParsedTools::Function<1>        inflow_function;
-+    InflowSeries inflow_series;
-+    std::string inflow_csv_file;
-+    double inflow_csv_period = 0.;
+ #include <deal.II/sundials/ida.h>
+ 
++#include <metric_flow_x/inflow_series.h>
+ #include <metric_flow_x/parsed_tools/constants.h>
+ #include <metric_flow_x/parsed_tools/function.h>
+ 
+@@ -630,6 +631,13 @@ namespace MetricFlowX
+     // &cell,
+     //          const unsigned int face_no) const;
+ 
++    std::string terminal_parameter_source = "VTK";
++    std::string terminal_parameters_csv_file;
++    double      default_terminal_r1    = 0.0;
++    double      default_terminal_r2    = 1e8;
++    double      default_terminal_c     = 0.0;
++    double      default_terminal_p_out = 0.0;
++
+     ParsedTools::Constants    par;
+     AffineConstraints<double> constraints_;
+     double                    current_dt  = 0.0;
+@@ -651,9 +659,18 @@ namespace MetricFlowX
+ 
+     struct RCRPhysics
+     {
+-      double R1, R2, C, P_out;
++      double      R1, R2, C, P_out;
++      std::string label;
+     };
+-    std::map<unsigned int, RCRPhysics>   rcr_map;
++    std::map<unsigned int, RCRPhysics> rcr_map;
++    // Coarse-mesh incidence, replicated before partitioning; output owners
++    // need labels even when the terminal itself belongs to another rank.
++    std::map<unsigned int, std::set<types::boundary_id>> vessel_terminals;
++
++    std::map<types::boundary_id, RCRPhysics>
++    read_terminal_parameters(
++      const std::set<types::boundary_id> &terminal_ids) const;
++
+     std::map<unsigned int, unsigned int> vid_to_rcr_vertex; // key = vessel id
+     std::map<types::boundary_id, double> terminal_Pc_storage;
+     std::set<types::boundary_id>         terminal_boundary_ids;
+@@ -859,15 +876,28 @@ namespace MetricFlowX
+     // differs.
+ 
+ #ifdef USE_PETSC_LA
++#  ifdef DEAL_II_PETSC_WITH_MUMPS
+     std::unique_ptr<PETScWrappers::SparseDirectMUMPS> direct_solver;
++#  else
++    std::unique_ptr<PETScWrappers::PreconditionLU> direct_lu;
++#  endif
+ #else
+     std::unique_ptr<TrilinosWrappers::SolverDirect> direct_solver;
+ #endif
+ 
+-    // Preconditioner for the iterative path.  Note that PETSc's PCILU is a
+-    // single-rank preconditioner: with more than one process, initialize() it
+-    // through a block-Jacobi outer level or fall back to PreconditionAMG.
+-    std::unique_ptr<LA::MPI::PreconditionILU> ilu_preconditioner;
++    // The PETSc iterative path uses block Jacobi with a local ILU per rank.
++    // Local shifts handle zero DAE pivots without changing the system matrix.
++#ifdef USE_PETSC_LA
++    using IterativePreconditioner = PETScWrappers::PreconditionBlockJacobi;
++#else
++    using IterativePreconditioner = LA::MPI::PreconditionILU;
++#endif
++    std::unique_ptr<IterativePreconditioner> ilu_preconditioner;
++
++    void
++    initialize_iterative_preconditioner(IterativePreconditioner &preconditioner,
++                                        const MatrixType        &matrix) const;
++
+ 
+     // Per-cell mass matrices, indexed by cell->active_cell_index(): deal.II
+     // numbers the locally stored active cells contiguously, so no CellId lookup
+@@ -931,9 +961,14 @@ namespace MetricFlowX
+ 
+     SUNDIALS::IDA<VectorType>::AdditionalData ida_parameters;
+ 
+-    ParsedTools::Function<spacedim> rhs_function;
+-    ParsedTools::Function<spacedim> exact_solution;
+-    ParsedTools::Function<1>        inflow_function;
++    ParsedTools::Function<spacedim>       rhs_function;
++    ParsedTools::Function<spacedim>       exact_solution;
++    ParsedTools::Function<1>              inflow_function;
++    InflowSeries                          inflow_series;
++    std::string                           inflow_csv_file;
++    double                                inflow_csv_period  = 0.;
++    bool                                  write_terminal_csv = false;
 +    std::map<unsigned int, std::ofstream> csv_terminal;
  
      // -----------------------------------------------------------------------
      // CSV time-series output, one file per vessel.
 diff --git a/include/metric_flow_x/inflow_series.h b/include/metric_flow_x/inflow_series.h
 new file mode 100644
-index 0000000..efa693a
+index 0000000..58f467d
 --- /dev/null
 +++ b/include/metric_flow_x/inflow_series.h
-@@ -0,0 +1,81 @@
+@@ -0,0 +1,62 @@
 +#ifndef METRIC_FLOW_X_INFLOW_SERIES_H
 +#define METRIC_FLOW_X_INFLOW_SERIES_H
 +
 +#include <algorithm>
 +#include <cmath>
-+#include <fstream>
-+#include <sstream>
 +#include <stdexcept>
 +#include <string>
 +#include <utility>
@@ -86,86 +478,237 @@ index 0000000..efa693a
 +  class InflowSeries
 +  {
 +  public:
-+    void read(const std::string &filename, const double period = 0.)
++    void
++    read(const std::string &filename, const double period = 0.);
++
++    bool
++    empty() const
 +    {
-+      samples.clear();
-+      periodicity = period;
-+      if (!std::isfinite(period) || period < 0.)
-+        throw std::invalid_argument("Inflow period must be finite and nonnegative");
-+      std::ifstream input(filename);
-+      std::string line;
-+      if (!std::getline(input, line))
-+        throw std::invalid_argument("Cannot read inflow CSV: " + filename);
-+      if (!line.empty() && line.back() == '\r') line.pop_back();
-+      if (line != "time_s,flow_m3_s")
-+        throw std::invalid_argument("Expected inflow CSV header time_s,flow_m3_s");
-+      while (std::getline(input, line))
-+        {
-+          if (!line.empty() && line.back() == '\r') line.pop_back();
-+          std::istringstream row(line);
-+          double time, flow;
-+          char comma;
-+          if (!(row >> time >> comma >> flow) || comma != ',' ||
-+              !std::isfinite(time) || !std::isfinite(flow) ||
-+              (row >> std::ws && !row.eof()) ||
-+              (!samples.empty() && time <= samples.back().first))
-+            throw std::invalid_argument("Invalid or unordered inflow CSV row");
-+          samples.emplace_back(time, flow);
-+        }
-+      if (samples.size() < 2)
-+        throw std::invalid_argument("Inflow CSV requires at least two samples");
-+      if (period > 0. &&
-+          (std::abs(samples.back().first - samples.front().first - period) > 1e-10 * period ||
-+           std::abs(samples.front().second - samples.back().second) >
-+             1e-14 + 1e-8 * std::abs(samples.front().second)))
-+        throw std::invalid_argument("Periodic inflow must span one closed period");
++      return samples.empty();
 +    }
 +
-+    bool empty() const { return samples.empty(); }
-+
-+    double value(double time) const
++    double
++    value(double time) const
 +    {
 +      if (samples.empty() || !std::isfinite(time))
 +        throw std::invalid_argument("Invalid inflow evaluation");
-+      if (periodicity > 0. && (time < samples.front().first || time > samples.back().first))
++      if (periodicity > 0. &&
++          (time < samples.front().first || time > samples.back().first))
 +        {
-+          double phase = std::fmod(time - samples.front().first, periodicity);
-+          if (phase < 0.) phase += periodicity;
-+          time = samples.front().first + phase;
++          long double phase =
++            std::fmod(static_cast<long double>(time) - samples.front().first,
++                      static_cast<long double>(periodicity));
++          if (phase < 0.)
++            phase += periodicity;
++          time = static_cast<double>(samples.front().first + phase);
 +        }
 +      if (time < samples.front().first || time > samples.back().first)
 +        throw std::out_of_range("Inflow extrapolation is forbidden");
-+      auto right = std::upper_bound(samples.begin(), samples.end(), time,
-+        [](double t, const auto &sample) { return t < sample.first; });
-+      if (right == samples.end()) return samples.back().second;
++      auto right = std::upper_bound(samples.begin(),
++                                    samples.end(),
++                                    time,
++                                    [](double t, const auto &sample) {
++                                      return t < sample.first;
++                                    });
++      if (right == samples.end())
++        return samples.back().second;
 +      const auto &a = *(right - 1);
 +      const auto &b = *right;
-+      return a.second + (b.second - a.second) * ((time - a.first) / (b.first - a.first));
++      return a.second +
++             (b.second - a.second) * ((time - a.first) / (b.first - a.first));
 +    }
 +
 +  private:
 +    std::vector<std::pair<double, double>> samples;
-+    double periodicity = 0.;
++    double                                 periodicity = 0.;
 +  };
-+}
++} // namespace MetricFlowX
 +#endif
+diff --git a/include/metric_flow_x/io/vtk_utils.h b/include/metric_flow_x/io/vtk_utils.h
+index 7595307..f2b8312 100644
+--- a/include/metric_flow_x/io/vtk_utils.h
++++ b/include/metric_flow_x/io/vtk_utils.h
+@@ -49,6 +49,9 @@
+ #  include <deal.II/lac/la_parallel_vector.h>
+ #  include <deal.II/lac/vector.h>
+ 
++#  include <vtkSmartPointer.h>
++#  include <vtkUnstructuredGrid.h>
++
+ namespace MetricFlowX
+ {
+   using dealii::BlockIndices;
+@@ -90,6 +93,28 @@ namespace MetricFlowX
+    * and parallel computations.
+    */
+   {
++    /** Load one VTK dataset and reuse its geometry and data arrays. */
++    class Reader
++    {
++    public:
++      explicit Reader(const std::string &filename);
++
++      template <int dim, int spacedim>
++      void
++      read_vtk(Triangulation<dim, spacedim> &tria,
++               const bool                    cleanup = true) const;
++      void
++      read_cell_data(const std::string &name, Vector<double> &values) const;
++      void
++      read_vertex_data(const std::string &name, Vector<double> &values) const;
++      bool
++      has_cell_data(const std::string &name) const;
++
++    private:
++      std::string                          vtk_filename;
++      vtkSmartPointer<vtkUnstructuredGrid> dataset;
++    };
++
+     /**
+      * @brief Read a VTK mesh file and populate a deal.II Triangulation.
+      *
+diff --git a/scripts/build_doc.sh b/scripts/build_doc.sh
+index 8efd9fd..1d94bb8 100755
+--- a/scripts/build_doc.sh
++++ b/scripts/build_doc.sh
+@@ -46,7 +46,11 @@ rm -rf "${SITE_DIR}" "${API_STUB_DIR}"
+ cp "${DOXYFILE}" "${TMP_DOXYFILE}"
+ cat >> "${TMP_DOXYFILE}" <<EOF
+ OUTPUT_DIRECTORY = ${DOXYGEN_DIR}
+-INPUT = ${ROOT_DIR}/source ${ROOT_DIR}/include ${ROOT_DIR}/README.md
++# The README contains MyST directives and is included by Sphinx's index.md.
++# Doxygen only parses the C++ API; parsing the README again treats directives
++# such as csv-table as unknown code lexers on older Doxygen versions.
++INPUT = ${ROOT_DIR}/source ${ROOT_DIR}/include
++USE_MDFILE_AS_MAINPAGE =
+ STRIP_FROM_PATH = ${ROOT_DIR}
+ GENERATE_HTML = NO
+ GENERATE_XML = YES
 diff --git a/source/blood_flow_system.cc b/source/blood_flow_system.cc
-index a8dc2c7..ccb7aa2 100644
+index 01b4bcb..1f4666e 100644
 --- a/source/blood_flow_system.cc
 +++ b/source/blood_flow_system.cc
-@@ -157,6 +157,8 @@ namespace MetricFlowX
+@@ -25,7 +25,6 @@
+ 
+ #include <deal.II/dofs/dof_renumbering.h>
+ 
+-#include <deal.II/grid/grid_in.h>
+ #include <deal.II/grid/grid_tools.h>
+ #include <deal.II/grid/tria_accessor.h>
+ #include <deal.II/grid/tria_description.h>
+@@ -51,12 +50,68 @@
+ #include <fstream>
+ #include <iomanip>
+ #include <limits>
++#include <locale>
+ #include <sstream>
++#include <type_traits>
++
++#include "rapidcsv.h"
+ 
+ namespace MetricFlowX
+ {
+   using namespace dealii;
+ 
++  namespace
++  {
++    template <typename T>
++    std::string
++    csv_cell(const T &value)
++    {
++      if constexpr (std::is_convertible_v<T, std::string>)
++        return value;
++      else
++        {
++          std::ostringstream text;
++          text.imbue(std::locale::classic());
++          text << std::setprecision(std::numeric_limits<double>::max_digits10)
++               << value;
++          return text.str();
++        }
++    }
++
++    // Serialize only the current record, preserving bounded memory and live
++    // output even for long simulations. Rapidcsv owns quoting and escaping.
++    void
++    csv_write_record(std::ostream                   &stream,
++                     const std::vector<std::string> &values)
++    {
++      rapidcsv::Document row("", rapidcsv::LabelParams(-1, -1));
++      row.SetRow(0, values);
++      row.Save(stream);
++      stream.flush();
++      AssertThrow(stream.good(), ExcMessage("Cannot write CSV record."));
++    }
++
++    template <typename... Values>
++    void
++    csv_write_row(std::ostream &stream, const Values &...values)
++    {
++      csv_write_record(stream, {csv_cell(values)...});
++    }
++
++    std::ofstream
++    csv_append(const std::string              &filename,
++               const std::vector<std::string> &header)
++    {
++      const bool empty = !std::filesystem::exists(filename) ||
++                         std::filesystem::file_size(filename) == 0;
++      std::ofstream stream(filename, std::ios::app);
++      AssertThrow(stream, ExcMessage("Cannot open " + filename));
++      if (empty)
++        csv_write_record(stream, header);
++      return stream;
++    }
++  } // namespace
++
+   // ===========================================================================
+   // IDA statistics access shim.
+   //
+@@ -166,6 +221,21 @@ namespace MetricFlowX
      add_parameter("Use junction mesh", use_junction_mesh);
      add_parameter("Outlet boundary condition type", outlet_type);
      add_parameter("Vtk file path for mesh input", vtk_file_path);
++    add_parameter(
++      "Terminal parameter source",
++      terminal_parameter_source,
++      "VTK preserves legacy mesh values; Parameters uses defaults and optional CSV overrides.",
++      this->prm,
++      Patterns::Selection("VTK|Parameters"));
++    add_parameter("Terminal parameters CSV file", terminal_parameters_csv_file);
++    add_parameter("Default terminal R1", default_terminal_r1);
++    add_parameter("Default terminal R2", default_terminal_r2);
++    add_parameter("Default terminal C", default_terminal_c);
++    add_parameter("Default terminal P_out", default_terminal_p_out);
++
 +    add_parameter("Inflow CSV file", inflow_csv_file);
 +    add_parameter("Inflow CSV period", inflow_csv_period);
++    add_parameter("Write terminal CSV files", write_terminal_csv);
  
      this->enter_subsection("IDA parameters");
      this->enter_my_subsection(this->prm);
-@@ -199,6 +201,12 @@ namespace MetricFlowX
+@@ -205,6 +275,11 @@ namespace MetricFlowX
+     deallog.depth_console(this_mpi_process == 0 ? verbosity : 0);
+     deallog.depth_file(this_mpi_process == 0 ? verbosity : 0);
+ 
++    AssertThrow(
++      terminal_parameter_source == "Parameters" ||
++        terminal_parameters_csv_file.empty(),
++      ExcMessage(
++        "Terminal parameters CSV file requires Terminal parameter source = Parameters."));
+     for (const double value : {area_absolute_tolerance_fraction,
+                                velocity_absolute_tolerance,
+                                capacitor_absolute_tolerance,
+@@ -217,6 +292,18 @@ namespace MetricFlowX
      exact_solution.update_constants(par);
      rhs_function.update_constants(par);
      inflow_function.update_constants(par);
++    AssertThrow(std::isfinite(inflow_csv_period) && inflow_csv_period >= 0.0,
++                ExcMessage(
++                  "Inflow CSV period must be finite and nonnegative."));
++    AssertThrow(!inflow_csv_file.empty() || inflow_csv_period == 0.0,
++                ExcMessage("Inflow CSV period requires an Inflow CSV file."));
++    inflow_series = InflowSeries{};
 +    if (!inflow_csv_file.empty())
 +      {
 +        inflow_series.read(inflow_csv_file, inflow_csv_period);
@@ -175,62 +718,521 @@ index a8dc2c7..ccb7aa2 100644
  
      if (numerical_flux_type_str == "HLL")
        numerical_flux_type = NumericalFluxType::HLL;
-@@ -1675,6 +1683,30 @@ namespace MetricFlowX
+@@ -361,6 +448,45 @@ namespace MetricFlowX
+       flow_regime_log.flush();
+   }
+ 
++  template <int dim, int spacedim>
++  void
++  BloodFlowSystem<dim, spacedim>::initialize_iterative_preconditioner(
++    IterativePreconditioner &preconditioner,
++    const MatrixType        &matrix) const
++  {
++    preconditioner.initialize(matrix);
++#ifdef USE_PETSC_LA
++    // A local DAE block may have zero pivots even when the global matrix is
++    // invertible. Shift the local ILU factors, without changing the operator.
++    const auto check = [](const PetscErrorCode error) {
++      AssertThrow(error == 0,
++                  ExcMessage("PETSc preconditioner setup error " +
++                             std::to_string(error)));
++    };
++    const PC pc = preconditioner.get_pc();
++    PCType   type;
++    check(PCGetType(pc, &type));
++    if (std::string(type) != PCBJACOBI)
++      return; // Respect a different preconditioner explicitly selected by PETSc
++              // options.
++    check(PCSetUp(pc));
++    PetscInt count;
++    KSP     *subsolvers;
++    check(PCBJacobiGetSubKSP(pc, &count, nullptr, &subsolvers));
++    for (PetscInt i = 0; i < count; ++i)
++      {
++        PC subpc;
++        check(KSPGetPC(subsolvers[i], &subpc));
++        check(PCGetType(subpc, &type));
++        if (std::string(type) == PCILU || std::string(type) == PCLU)
++          {
++            check(PCFactorSetShiftType(subpc, MAT_SHIFT_NONZERO));
++            check(PCSetFromOptions(subpc));
++          }
++      }
++#endif
++  }
++
+   template <int dim, int spacedim>
+   void
+   BloodFlowSystem<dim, spacedim>::reinit_state(VectorType &state) const
+@@ -485,6 +611,105 @@ namespace MetricFlowX
+   // memory, this is the function to replace with
+   // create_description_from_triangulation_in_groups().
+   // ============================================================================
++  template <int dim, int spacedim>
++  std::map<types::boundary_id,
++           typename BloodFlowSystem<dim, spacedim>::RCRPhysics>
++  BloodFlowSystem<dim, spacedim>::read_terminal_parameters(
++    const std::set<types::boundary_id> &terminal_ids) const
++  {
++    const auto validate = [](const RCRPhysics &rcr) {
++      AssertThrow(
++        std::isfinite(rcr.R1) && std::isfinite(rcr.R2) &&
++          std::isfinite(rcr.C) && std::isfinite(rcr.P_out) && rcr.R1 >= 0.0 &&
++          rcr.R2 >= 0.0 && rcr.C >= 0.0 && rcr.R1 + rcr.R2 > 0.0 &&
++          std::isfinite(rcr.R1 + rcr.R2) && (rcr.C == 0.0 || rcr.R2 > 0.0),
++        ExcMessage(
++          "Terminal RCR values must be finite, resistances and compliance nonnegative, total resistance positive, and R2 positive when C > 0."));
++    };
++    RCRPhysics defaults;
++    defaults.R1    = default_terminal_r1;
++    defaults.R2    = default_terminal_r2;
++    defaults.C     = default_terminal_c;
++    defaults.P_out = default_terminal_p_out;
++    validate(defaults);
++    std::map<types::boundary_id, RCRPhysics> result;
++    for (const auto id : terminal_ids)
++      {
++        auto value  = defaults;
++        value.label = "boundary_" + std::to_string(id);
++        result.emplace(id, value);
++      }
++    if (terminal_parameters_csv_file.empty())
++      return result;
++    rapidcsv::SeparatorParams separators(',', true);
++    separators.mQuotedLinebreaks = true;
++    const rapidcsv::Document csv(terminal_parameters_csv_file,
++                                 rapidcsv::LabelParams(),
++                                 separators);
++    const auto               columns = csv.GetColumnNames();
++    std::set<std::string>    column_names;
++    for (const auto &name : columns)
++      AssertThrow(!name.empty() && column_names.insert(name).second,
++                  ExcMessage(
++                    "Terminal CSV column names must be nonempty and unique."));
++    AssertThrow(csv.GetColumnIdx("boundary_id") >= 0,
++                ExcMessage("Terminal CSV requires a boundary_id column."));
++    AssertThrow(
++      csv.GetColumnIdx("R1") >= 0 || csv.GetColumnIdx("R2") >= 0 ||
++        csv.GetColumnIdx("C") >= 0 || csv.GetColumnIdx("label") >= 0,
++      ExcMessage(
++        "Terminal CSV requires at least one of R1, R2, C or label; other columns are ignored."));
++    const auto parse_value = [](const std::string &text, double &value) {
++      std::size_t consumed = 0;
++      value                = std::stod(text, &consumed);
++      AssertThrow(consumed == text.size(),
++                  ExcMessage("Invalid terminal CSV numeric value: " + text));
++    };
++    std::set<types::boundary_id> seen;
++    for (std::size_t row = 0; row < csv.GetRowCount(); ++row)
++      {
++        const std::string context =
++          "Malformed terminal CSV row " + std::to_string(row + 2);
++        AssertThrow(csv.GetRow<std::string>(row).size() == columns.size(),
++                    ExcMessage(context));
++        const auto id_text = csv.GetCell<std::string>("boundary_id", row);
++        AssertThrow(
++          !id_text.empty() &&
++            std::all_of(id_text.begin(),
++                        id_text.end(),
++                        [](const char c) { return c >= '0' && c <= '9'; }),
++          ExcMessage(context + ": boundary_id must be an unsigned integer"));
++        const auto raw_id = csv.GetCell<unsigned long long>("boundary_id", row);
++        AssertThrow(raw_id <= std::numeric_limits<types::boundary_id>::max(),
++                    ExcMessage(context + ": boundary_id is out of range"));
++        RCRPhysics value          = defaults;
++        const auto override_value = [&](const std::string &name,
++                                        double            &target) {
++          if (csv.GetColumnIdx(name) >= 0 &&
++              !csv.GetCell<std::string>(name, row).empty())
++            target = csv.GetCell<double>(name, row, parse_value);
++        };
++        override_value("R1", value.R1);
++        override_value("R2", value.R2);
++        override_value("C", value.C);
++        const auto id = static_cast<types::boundary_id>(raw_id);
++        AssertThrow(result.count(id) != 0,
++                    ExcMessage(
++                      "Terminal CSV references non-terminal boundary ID " +
++                      std::to_string(id)));
++        AssertThrow(seen.insert(id).second,
++                    ExcMessage("Duplicate boundary ID in terminal CSV: " +
++                               std::to_string(id)));
++        value.label = result.at(id).label;
++        if (csv.GetColumnIdx("label") >= 0 &&
++            !csv.GetCell<std::string>("label", row).empty())
++          value.label = csv.GetCell<std::string>("label", row);
++        validate(value);
++        result.at(id) = value;
++      }
++    return result;
++  }
++
+   template <int dim, int spacedim>
+   void
+   BloodFlowSystem<dim, spacedim>::create_triangulation()
+@@ -493,28 +718,21 @@ namespace MetricFlowX
+ 
+     Triangulation<dim, spacedim> serial_triangulation;
+ 
+-    {
+-      GridIn<dim, spacedim> grid_in;
+-      grid_in.attach_triangulation(serial_triangulation);
+-      if (verbosity > 0)
+-        pcout << "Reading VTK file: " << vtk_file_path << std::endl;
+-      std::ifstream mesh_file(vtk_file_path);
+-      AssertThrow(mesh_file, ExcMessage("Cannot open " + vtk_file_path));
+-      grid_in.read_vtk(mesh_file);
+-    }
++    VTKUtils::Reader vtk(vtk_file_path);
++    vtk.read_vtk(serial_triangulation, false);
+     if (verbosity > 0)
+       pcout << "Coarse cells = " << serial_triangulation.n_active_cells()
+             << std::endl;
+ 
+-    VTKUtils::read_cell_data(vtk_file_path, "vessel_id", cell_vessel_ids);
+-    VTKUtils::read_cell_data(vtk_file_path, "a0", cell_a0);
+-    VTKUtils::read_cell_data(vtk_file_path, "a_d", cell_a_d);
+-    VTKUtils::read_cell_data(vtk_file_path, "E", cell_E);
+-    VTKUtils::read_cell_data(vtk_file_path, "h_wall", cell_h_wall);
+-    VTKUtils::read_cell_data(vtk_file_path, "p_d", cell_p_d);
+-    VTKUtils::read_cell_data(vtk_file_path, "p0", cell_p0);
+-    VTKUtils::read_cell_data(vtk_file_path, "L", cell_L);
+-    VTKUtils::read_cell_data(vtk_file_path, "r_d", cell_r_d);
++    vtk.read_cell_data("vessel_id", cell_vessel_ids);
++    vtk.read_cell_data("a0", cell_a0);
++    vtk.read_cell_data("a_d", cell_a_d);
++    vtk.read_cell_data("E", cell_E);
++    vtk.read_cell_data("h_wall", cell_h_wall);
++    vtk.read_cell_data("p_d", cell_p_d);
++    vtk.read_cell_data("p0", cell_p0);
++    vtk.read_cell_data("L", cell_L);
++    vtk.read_cell_data("r_d", cell_r_d);
+ 
+     if (write_flow_regime_diagnostics)
+       for (unsigned int i = 0; i < cell_a_d.size(); ++i)
+@@ -525,29 +743,28 @@ namespace MetricFlowX
+                   << " has a_d inconsistent with pi*r_d^2 by more than 2%.\n";
+         }
+ 
+-    // Tapered radii are optional.
+-    try
+-      {
+-        VTKUtils::read_cell_data(vtk_file_path, "r_in", cell_r_in);
+-      }
+-    catch (...)
+-      {
+-        cell_r_in.reinit(0);
+-      }
+-    try
+-      {
+-        VTKUtils::read_cell_data(vtk_file_path, "r_out", cell_r_out);
+-      }
+-    catch (...)
++    // Missing taper arrays are optional; malformed arrays still report errors.
++    cell_r_in.reinit(0);
++    cell_r_out.reinit(0);
++    if (vtk.has_cell_data("r_in"))
++      vtk.read_cell_data("r_in", cell_r_in);
++    if (vtk.has_cell_data("r_out"))
++      vtk.read_cell_data("r_out", cell_r_out);
++
++    if (terminal_parameter_source == "VTK")
+       {
+-        cell_r_out.reinit(0);
++        vtk.read_vertex_data("R1", point_R1);
++        vtk.read_vertex_data("R2", point_R2);
++        vtk.read_vertex_data("C", point_C);
++        vtk.read_vertex_data("P_out", point_P_out);
+       }
++    vtk.read_vertex_data("boundary_id", point_boundary_id);
+ 
+-    VTKUtils::read_vertex_data(vtk_file_path, "R1", point_R1);
+-    VTKUtils::read_vertex_data(vtk_file_path, "R2", point_R2);
+-    VTKUtils::read_vertex_data(vtk_file_path, "C", point_C);
+-    VTKUtils::read_vertex_data(vtk_file_path, "P_out", point_P_out);
+-    VTKUtils::read_vertex_data(vtk_file_path, "boundary_id", point_boundary_id);
++    std::vector<unsigned int> vertex_degree(serial_triangulation.n_vertices(),
++                                            0);
++    for (const auto &cell : serial_triangulation.active_cell_iterators())
++      for (const auto vertex : cell->vertex_indices())
++        ++vertex_degree[cell->vertex_index(vertex)];
+ 
+     // Material IDs + boundary IDs from VTK.  These are attributes of the coarse
+     // cells and are inherited by their children through refinement and carried
+@@ -572,22 +789,53 @@ namespace MetricFlowX
+ 
+     // RCR map, keyed by boundary id: global data, identical on every rank
+     // because every rank reads the same file.
+-    rcr_map.clear();
++    if (terminal_parameter_source == "Parameters")
++      {
++        std::set<types::boundary_id> terminals;
++        for (const auto &cell : serial_triangulation.active_cell_iterators())
++          for (const auto face : cell->face_indices())
++            if (cell->face(face)->at_boundary() &&
++                vertex_degree[cell->face(face)->vertex_index(0)] == 1)
++              {
++                const auto id = cell->face(face)->boundary_id();
++                if (id != 0)
++                  AssertThrow(terminals.insert(id).second,
++                              ExcMessage(
++                                "Duplicate terminal boundary ID in mesh."));
++              }
++        rcr_map = read_terminal_parameters(terminals);
++      }
++    else
++      {
++        rcr_map.clear();
++        for (const auto &cell : serial_triangulation.active_cell_iterators())
++          for (unsigned int f = 0; f < GeometryInfo<dim>::faces_per_cell; ++f)
++            if (cell->face(f)->at_boundary())
++              {
++                const types::boundary_id bid = cell->face(f)->boundary_id();
++                if (bid == 0)
++                  continue; // inflow
++                const unsigned int v = cell->face(f)->vertex_index(0);
++                RCRPhysics         rcr;
++                rcr.R1    = point_R1[v];
++                rcr.R2    = point_R2[v];
++                rcr.C     = point_C[v];
++                rcr.P_out = point_P_out[v];
++                rcr.label = "boundary_" + std::to_string(bid);
++                if (rcr.R2 > 0.0)
++                  rcr_map[bid] = rcr;
++              }
++      }
++
++    vessel_terminals.clear();
+     for (const auto &cell : serial_triangulation.active_cell_iterators())
+-      for (unsigned int f = 0; f < GeometryInfo<dim>::faces_per_cell; ++f)
+-        if (cell->face(f)->at_boundary())
++      for (const auto face : cell->face_indices())
++        if (cell->face(face)->at_boundary() &&
++            vertex_degree[cell->face(face)->vertex_index(0)] == 1)
+           {
+-            const types::boundary_id bid = cell->face(f)->boundary_id();
+-            if (bid == 0)
+-              continue; // inflow
+-            const unsigned int v = cell->face(f)->vertex_index(0);
+-            RCRPhysics         rcr;
+-            rcr.R1    = point_R1[v];
+-            rcr.R2    = point_R2[v];
+-            rcr.C     = point_C[v];
+-            rcr.P_out = point_P_out[v];
+-            if (rcr.R2 > 0.0)
+-              rcr_map[bid] = rcr;
++            const auto id = cell->face(face)->boundary_id();
++            if (id != 0 && rcr_map.count(id))
++              vessel_terminals[cell->material_id()].insert(id);
+           }
+ 
+     serial_triangulation.refine_global(n_global_refinements);
+@@ -1699,16 +1947,49 @@ namespace MetricFlowX
+         // ---- solve and update
+         // ------------------------------------------------
+         {
+-          SolverControl solver_control(1, 0.0);
++          if (use_direct_solver)
++            {
++              SolverControl solver_control(1, 0.0);
+ #ifdef USE_PETSC_LA
+-          PETScWrappers::SparseDirectMUMPS newton_solver(solver_control);
+-          newton_solver.solve(linear_system_matrix, delta, rhs);
++#  ifdef DEAL_II_PETSC_WITH_MUMPS
++              PETScWrappers::SparseDirectMUMPS newton_solver(solver_control);
++              newton_solver.solve(linear_system_matrix, delta, rhs);
++#  else
++              AssertThrow(
++                n_mpi_processes == 1,
++                ExcMessage(
++                  "Parallel direct solves require PETSc with MUMPS. Set Use direct solver = false for GMRES with block Jacobi."));
++              PETScWrappers::PreconditionLU factorization(linear_system_matrix);
++              const PetscErrorCode error = PCFactorReorderForNonzeroDiagonal(
++                factorization.get_pc(),
++                PETScWrappers::PreconditionLU::AdditionalData().zero_pivot);
++              AssertThrow(error == 0,
++                          ExcMessage("Cannot reorder the trace LU diagonal."));
++              factorization.vmult(delta, rhs);
++#  endif
+ #else
+-          TrilinosWrappers::SolverDirect newton_solver(solver_control);
+-          newton_solver.solve(linear_system_matrix, delta, rhs);
++              TrilinosWrappers::SolverDirect newton_solver(solver_control);
++              newton_solver.solve(linear_system_matrix, delta, rhs);
+ #endif
++            }
++          else
++            {
++              SolverControl   solver_control(1000, 1e-12 * rhs.l2_norm());
++              LA::SolverGMRES newton_solver(solver_control);
++              IterativePreconditioner preconditioner;
++              initialize_iterative_preconditioner(preconditioner,
++                                                  linear_system_matrix);
++              newton_solver.solve(linear_system_matrix,
++                                  delta,
++                                  rhs,
++                                  preconditioner);
++            }
+         }
+ 
++        AssertThrow(std::isfinite(delta.l2_norm()),
++                    ExcMessage(
++                      "Trace linear solve returned a non-finite correction."));
++
+         for (const auto i : trace_dofs_owned)
+           sol(i) += delta(i);
+         sol.compress(VectorOperation::add);
+@@ -1816,10 +2097,76 @@ namespace MetricFlowX
  
      close_csv_files();
      csv_vessel.clear();
 +    csv_terminal.clear();
-+    std::vector<unsigned int> local_terminal_ids;
-+    for (const auto &cell : dof_handler_.active_cell_iterators())
-+      if (cell->is_locally_owned())
-+        for (unsigned int f = 0; f < GeometryInfo<dim>::faces_per_cell; ++f)
-+          if (cell->face(f)->at_boundary() && !is_junction_face(cell->id(), f))
-+            local_terminal_ids.push_back(cell->face(f)->boundary_id());
-+    std::map<unsigned int, unsigned int> terminal_counts;
-+    for (const auto &ids : Utilities::MPI::all_gather(mpi_communicator_, local_terminal_ids))
-+      for (const auto id : ids) ++terminal_counts[id];
-+    for (const auto &entry : terminal_counts)
-+      AssertThrow(entry.second == 1, ExcMessage("Terminal boundary ids must be globally unique"));
-+    for (const auto &cell : dof_handler_.active_cell_iterators())
-+      if (cell->is_locally_owned())
-+        for (unsigned int f = 0; f < GeometryInfo<dim>::faces_per_cell; ++f)
-+          if (cell->face(f)->at_boundary() && !is_junction_face(cell->id(), f))
-+            {
-+              const auto bid = cell->face(f)->boundary_id();
-+              auto &os = csv_terminal[bid];
-+              AssertThrow(!os.is_open(), ExcMessage("Duplicate terminal boundary id"));
-+              os.open(dir + "terminal_" + std::to_string(bid) + ".csv");
-+              AssertThrow(os.good(), ExcMessage("Cannot open terminal CSV"));
-+              os << "time_s,pressure_Pa,flow_m3_s,boundary_id,vessel_id\n";
-+            }
++    if (write_terminal_csv)
++      {
++        std::vector<unsigned int> local_terminal_ids;
++        for (const auto &cell : dof_handler_.active_cell_iterators())
++          if (cell->is_locally_owned())
++            for (unsigned int f = 0; f < GeometryInfo<dim>::faces_per_cell; ++f)
++              if (cell->face(f)->at_boundary() &&
++                  !is_junction_face(cell->id(), f))
++                local_terminal_ids.push_back(cell->face(f)->boundary_id());
++        std::map<unsigned int, unsigned int> terminal_counts;
++        for (const auto &ids :
++             Utilities::MPI::all_gather(mpi_communicator_, local_terminal_ids))
++          for (const auto id : ids)
++            ++terminal_counts[id];
++        for (const auto &entry : terminal_counts)
++          AssertThrow(entry.second == 1,
++                      ExcMessage(
++                        "Terminal boundary ids must be globally unique"));
++        for (const auto &cell : dof_handler_.active_cell_iterators())
++          if (cell->is_locally_owned())
++            for (unsigned int f = 0; f < GeometryInfo<dim>::faces_per_cell; ++f)
++              if (cell->face(f)->at_boundary() &&
++                  !is_junction_face(cell->id(), f))
++                {
++                  const auto bid = cell->face(f)->boundary_id();
++                  auto      &os  = csv_terminal[bid];
++                  AssertThrow(!os.is_open(),
++                              ExcMessage("Duplicate terminal boundary id"));
++                  os.open(dir + "terminal_" + std::to_string(bid) + ".csv");
++                  AssertThrow(os.good(),
++                              ExcMessage("Cannot open terminal CSV"));
++                  csv_write_row(os,
++                                "time_s",
++                                "pressure_Pa",
++                                "flow_m3_s",
++                                "boundary_id",
++                                "vessel_id",
++                                "label");
++                }
++      }
+     mach_warning_active.clear();
      probe_targets.clear();
  
-     const std::string hdr = "time_s,P_dynpcm2,Q_cm3ps,A_cm2,U_cmps\n";
-@@ -1739,6 +1771,23 @@ namespace MetricFlowX
+-    const std::string hdr = "time_s,P_dynpcm2,Q_cm3ps,A_cm2,U_cmps\n";
++    if (this_mpi_process == 0)
++      {
++        std::ofstream terminals(dir + "network_terminals.csv");
++        AssertThrow(terminals, ExcMessage("Cannot open network_terminals.csv"));
++        csv_write_row(terminals,
++                      "boundary_id",
++                      "vessel_id",
++                      "label",
++                      "R1",
++                      "R2",
++                      "C",
++                      "P_out");
++        for (const auto &[vid, ids] : vessel_terminals)
++          for (const auto id : ids)
++            {
++              const auto &rcr = rcr_map.at(id);
++              csv_write_row(terminals,
++                            id,
++                            vid,
++                            rcr.label,
++                            rcr.R1,
++                            rcr.R2,
++                            rcr.C,
++                            rcr.P_out);
++            }
++      }
+ 
+     for (const auto &[vid, vpp] : vessel_map)
+       {
+@@ -1869,7 +2216,12 @@ namespace MetricFlowX
+ 
+         std::ofstream &os = csv_vessel[vid];
+         os.open(dir + "HDG_IDA_Vessel_" + std::to_string(vid) + ".csv");
+-        os << hdr;
++        AssertThrow(os, ExcMessage("Cannot open vessel probe CSV."));
++        std::vector<std::string> header{
++          "time_s", "P_dynpcm2", "Q_cm3ps", "A_cm2", "U_cmps"};
++        for (const auto id : vessel_terminals[vid])
++          header.push_back("boundary_" + std::to_string(id) + "_label");
++        csv_write_record(os, header);
+       }
+   }
+ 
+@@ -1881,6 +2233,39 @@ namespace MetricFlowX
    BloodFlowSystem<dim, spacedim>::write_csv_row(const double      t,
                                                  const VectorType &sol)
    {
-+    for (const auto &cell : dof_handler_.active_cell_iterators())
-+      if (cell->is_locally_owned())
-+        for (unsigned int f = 0; f < GeometryInfo<dim>::faces_per_cell; ++f)
-+          if (cell->face(f)->at_boundary() && !is_junction_face(cell->id(), f))
-+            {
-+              const auto bid = cell->face(f)->boundary_id();
-+              double area = 0., velocity = 0.;
-+              get_face_trace(sol, cell, f, area, velocity);
-+              const auto point = cell->face(f)->center();
-+              const double pressure = compute_physical_pressure(area,
-+                cell->material_id(), compute_a_d_at_face(cell, f), t, point, cell->id());
-+              auto &os = csv_terminal.at(bid);
-+              os << std::setprecision(17) << t << ',' << pressure << ','
-+                 << (f == 0 ? -1. : 1.) * area * velocity << ','
-+                 << bid << ',' << cell->material_id() << '\n';
-+              os.flush();
-+            }
++    if (write_terminal_csv)
++      {
++        for (const auto &cell : dof_handler_.active_cell_iterators())
++          if (cell->is_locally_owned())
++            for (unsigned int f = 0; f < GeometryInfo<dim>::faces_per_cell; ++f)
++              if (cell->face(f)->at_boundary() &&
++                  !is_junction_face(cell->id(), f))
++                {
++                  const auto bid  = cell->face(f)->boundary_id();
++                  double     area = 0., velocity = 0.;
++                  get_face_trace(sol, cell, f, area, velocity);
++                  const auto   point = cell->face(f)->center();
++                  const double pressure =
++                    compute_physical_pressure(area,
++                                              cell->material_id(),
++                                              compute_a_d_at_face(cell, f),
++                                              t,
++                                              point,
++                                              cell->id());
++                  auto             &os  = csv_terminal.at(bid);
++                  const auto        rcr = rcr_map.find(bid);
++                  const std::string label =
++                    rcr == rcr_map.end() ? "boundary_" + std::to_string(bid) :
++                                           rcr->second.label;
++                  csv_write_row(os,
++                                t,
++                                pressure,
++                                (f == 0 ? -1. : 1.) * area * velocity,
++                                bid,
++                                cell->material_id(),
++                                label);
++                }
++      }
      const unsigned int dofs_per_cell = fe_->n_dofs_per_cell();
  
      // Reference-cell midpoint (DGQ, dim == 1 -> xi = 0.5).
-@@ -1789,6 +1838,9 @@ namespace MetricFlowX
+@@ -1915,9 +2300,14 @@ namespace MetricFlowX
+ 
+         const double Q_cm3ps = A_val * U_val * 1.0e6;
+ 
+-        os << std::scientific << std::setprecision(8) << t << "," << P_dynpcm2
+-           << "," << Q_cm3ps << "," << A_cm2 << "," << U_cmps << "\n";
+-        os.flush();
++        std::vector<std::string> values{csv_cell(t),
++                                        csv_cell(P_dynpcm2),
++                                        csv_cell(Q_cm3ps),
++                                        csv_cell(A_cm2),
++                                        csv_cell(U_cmps)};
++        for (const auto id : vessel_terminals.at(vid))
++          values.push_back(rcr_map.at(id).label);
++        csv_write_record(os, values);
+       }
+   }
+ 
+@@ -1932,6 +2322,9 @@ namespace MetricFlowX
      for (auto &kv : csv_vessel)
        if (kv.second.is_open())
          kv.second.close();
@@ -240,12 +1242,3525 @@ index a8dc2c7..ccb7aa2 100644
    }
  
    // ============================================================================
-@@ -2576,7 +2628,7 @@ namespace MetricFlowX
+@@ -2719,7 +3112,9 @@ namespace MetricFlowX
              if (bid == 0) // inflow
                {
                  inflow_function.set_time(t);
 -                const double Q_in   = inflow_function.value(Point<1>(0.0));
-+                const double Q_in   = (inflow_series.empty() ? inflow_function.value(Point<1>(0.0)) : inflow_series.value(t));
++                const double Q_in   = (inflow_series.empty() ?
++                                         inflow_function.value(Point<1>(0.0)) :
++                                         inflow_series.value(t));
                  const double W2_int = U_int - 4.0 * (c_int - c0);
  
                  res_A = A_hat_cur * U_hat_cur - Q_in;
+@@ -4311,6 +4706,11 @@ namespace MetricFlowX
+     for (unsigned int i = 0; i < subdomain.size(); ++i)
+       subdomain(i) = triangulation_.locally_owned_subdomain();
+     data_out.add_data_vector(subdomain, "subdomain");
++    Vector<double> vessel_ids(triangulation_.n_active_cells());
++    for (const auto &cell : triangulation_.active_cell_iterators())
++      if (cell->is_locally_owned())
++        vessel_ids(cell->active_cell_index()) = cell->material_id();
++    data_out.add_data_vector(vessel_ids, "vessel_id");
+ 
+     data_out.build_patches();
+ 
+@@ -4514,10 +4914,8 @@ namespace MetricFlowX
+ 
+     if (this_mpi_process == 0 && mass_log.is_open())
+       {
+-        mass_log << std::scientific << std::setprecision(8) << t << ","
+-                 << total_volume << "," << dVdt << "," << net_flux << ","
+-                 << imbalance << "," << rel_imbalance << "\n";
+-        mass_log.flush();
++        csv_write_row(
++          mass_log, t, total_volume, dVdt, net_flux, imbalance, rel_imbalance);
+       }
+ 
+     // Two independent gates: relative-to-peak-flow AND an absolute floor, so
+@@ -4563,7 +4961,13 @@ namespace MetricFlowX
+         AssertThrow(mass_log,
+                     ExcMessage("Cannot open " + dir +
+                                "/mass_conservation.csv"));
+-        mass_log << "t,total_volume,dVdt,net_flux,imbalance,rel_imbalance\n";
++        csv_write_row(mass_log,
++                      "t",
++                      "total_volume",
++                      "dVdt",
++                      "net_flux",
++                      "imbalance",
++                      "rel_imbalance");
+       }
+ 
+     bdf_steps.fill(0);
+@@ -4647,21 +5051,30 @@ namespace MetricFlowX
+     const std::string dir = output_directory.empty() ? "." : output_directory;
+     std::filesystem::create_directories(dir);
+ 
+-    const std::string filename    = dir + "/ida_statistics.csv";
+-    const bool        file_exists = std::ifstream(filename).good();
+-
+-    std::ofstream csv(filename, std::ios::app);
+-    AssertThrow(csv, ExcMessage("Cannot open " + filename));
+-
+-    if (!file_exists)
+-      csv << "max_order,wall_time,n_steps,n_err_test_fails,"
+-             "n_nonlin_iters,n_nonlin_conv_fails,"
+-             "bdf1_steps,bdf2_steps,bdf3_steps,bdf4_steps,bdf5_steps\n";
+-
+-    csv << ida_parameters.maximum_order << ',' << wall_time << ',' << nst << ','
+-        << netf << ',' << nni << ',' << ncfn << ',' << bdf_steps[1] << ','
+-        << bdf_steps[2] << ',' << bdf_steps[3] << ',' << bdf_steps[4] << ','
+-        << bdf_steps[5] << '\n';
++    auto csv = csv_append(dir + "/ida_statistics.csv",
++                          {"max_order",
++                           "wall_time",
++                           "n_steps",
++                           "n_err_test_fails",
++                           "n_nonlin_iters",
++                           "n_nonlin_conv_fails",
++                           "bdf1_steps",
++                           "bdf2_steps",
++                           "bdf3_steps",
++                           "bdf4_steps",
++                           "bdf5_steps"});
++    csv_write_row(csv,
++                  ida_parameters.maximum_order,
++                  wall_time,
++                  nst,
++                  netf,
++                  nni,
++                  ncfn,
++                  bdf_steps[1],
++                  bdf_steps[2],
++                  bdf_steps[3],
++                  bdf_steps[4],
++                  bdf_steps[5]);
+   }
+ 
+   // ============================================================================
+@@ -4699,18 +5112,10 @@ namespace MetricFlowX
+     const std::string dir = output_directory.empty() ? "." : output_directory;
+     std::filesystem::create_directories(dir);
+ 
+-    const std::string filename    = dir + "/scaling_timings.csv";
+-    const bool        file_exists = std::ifstream(filename).good();
+-
+-    std::ofstream csv(filename, std::ios::app);
+-    AssertThrow(csv, ExcMessage("Cannot open " + filename));
+-
+-    if (!file_exists)
+-      csv << "n_mpi_processes,section,wall_time\n";
+-
++    auto csv = csv_append(dir + "/scaling_timings.csv",
++                          {"n_mpi_processes", "section", "wall_time"});
+     for (const auto &entry : summary)
+-      csv << n_mpi_processes << "," << entry.first << "," << entry.second
+-          << "\n";
++      csv_write_row(csv, n_mpi_processes, entry.first, entry.second);
+   }
+ 
+   // Explicit instantiation
+diff --git a/source/inflow_series.cc b/source/inflow_series.cc
+new file mode 100644
+index 0000000..9d1fca8
+--- /dev/null
++++ b/source/inflow_series.cc
+@@ -0,0 +1,70 @@
++#include <metric_flow_x/inflow_series.h>
++
++#include <fstream>
++#include <locale>
++#include <set>
++#include <sstream>
++
++#include "rapidcsv.h"
++
++namespace MetricFlowX
++{
++  void
++  InflowSeries::read(const std::string &filename, const double period)
++  {
++    samples.clear();
++    periodicity = period;
++    if (!std::isfinite(period) || period < 0.)
++      throw std::invalid_argument(
++        "Inflow period must be finite and nonnegative");
++
++    std::ifstream input(filename);
++    if (!input)
++      throw std::invalid_argument("Cannot read inflow CSV: " + filename);
++    rapidcsv::SeparatorParams separators(',', true);
++    separators.mQuotedLinebreaks = true;
++    const rapidcsv::Document csv(input, rapidcsv::LabelParams(), separators);
++    const auto               columns = csv.GetColumnNames();
++    std::set<std::string>    names;
++    for (const auto &name : columns)
++      if (name.empty() || !names.insert(name).second)
++        throw std::invalid_argument(
++          "Inflow CSV column names must be nonempty and unique");
++    if (csv.GetColumnIdx("time_s") < 0 || csv.GetColumnIdx("flow_m3_s") < 0)
++      throw std::invalid_argument(
++        "Inflow CSV requires time_s and flow_m3_s columns");
++
++    const auto parse_value = [](const std::string &text, double &value) {
++      std::istringstream field(text);
++      field.imbue(std::locale::classic());
++      if (!(field >> value) || !std::isfinite(value) ||
++          (field >> std::ws && !field.eof()))
++        throw std::invalid_argument("Invalid inflow CSV numeric value: " +
++                                    text);
++    };
++    samples.reserve(csv.GetRowCount());
++    for (std::size_t row = 0; row < csv.GetRowCount(); ++row)
++      {
++        if (csv.GetRow<std::string>(row).size() != columns.size())
++          throw std::invalid_argument("Malformed inflow CSV row " +
++                                      std::to_string(row + 2));
++        const double time = csv.GetCell<double>("time_s", row, parse_value);
++        const double flow = csv.GetCell<double>("flow_m3_s", row, parse_value);
++        if (!samples.empty() && time <= samples.back().first)
++          throw std::invalid_argument(
++            "Inflow CSV times must be strictly increasing");
++        samples.emplace_back(time, flow);
++      }
++    if (samples.size() < 2)
++      throw std::invalid_argument("Inflow CSV requires at least two samples");
++    if (!std::isfinite(samples.back().first - samples.front().first))
++      throw std::invalid_argument("Inflow time span must be representable");
++    if (period > 0. &&
++        (std::abs(samples.back().first - samples.front().first - period) >
++           1e-10 * period ||
++         std::abs(samples.front().second - samples.back().second) >
++           1e-14 + 1e-8 * std::abs(samples.front().second)))
++      throw std::invalid_argument(
++        "Periodic inflow must span one closed period");
++  }
++} // namespace MetricFlowX
+diff --git a/source/io/vtk_utils.cc b/source/io/vtk_utils.cc
+index 410d277..f737965 100644
+--- a/source/io/vtk_utils.cc
++++ b/source/io/vtk_utils.cc
+@@ -29,6 +29,7 @@
+ #  include <vtkUnstructuredGrid.h>
+ #  include <vtkUnstructuredGridReader.h>
+ 
++#  include <fstream>
+ #  include <stdexcept>
+ 
+ namespace MetricFlowX
+@@ -37,18 +38,36 @@ namespace MetricFlowX
+ 
+   namespace VTKUtils
+   {
++    Reader::Reader(const std::string &filename)
++      : vtk_filename(filename)
++    {
++      std::ifstream input(filename);
++      AssertThrow(input, ExcMessage("Cannot open VTK file: " + filename));
++      auto reader = vtkSmartPointer<vtkUnstructuredGridReader>::New();
++      reader->SetFileName(filename.c_str());
++      reader->ReadAllScalarsOn();
++      reader->ReadAllVectorsOn();
++      reader->ReadAllFieldsOn();
++      reader->Update();
++      dataset = reader->GetOutput();
++      AssertThrow(dataset && dataset->GetPoints() &&
++                    dataset->GetNumberOfCells() > 0,
++                  ExcMessage("Failed to read VTK file: " + filename));
++    }
++
++    bool
++    Reader::has_cell_data(const std::string &name) const
++    {
++      return dataset->GetCellData()->GetArray(name.c_str()) != nullptr;
++    }
++
+     template <int dim, int spacedim>
+     void
+-    read_vtk(const std::string            &vtk_filename,
+-             Triangulation<dim, spacedim> &tria,
+-             const bool                    cleanup)
++    Reader::read_vtk(Triangulation<dim, spacedim> &tria,
++                     const bool                    cleanup) const
+     {
+       (void)cleanup;
+-      auto reader = vtkSmartPointer<vtkUnstructuredGridReader>::New();
+-      reader->SetFileName(vtk_filename.c_str());
+-      reader->Update();
+-      vtkUnstructuredGrid *grid = reader->GetOutput();
+-      AssertThrow(grid, ExcMessage("Failed to read VTK file: " + vtk_filename));
++      vtkUnstructuredGrid *grid = dataset;
+ 
+       // Read points
+       vtkPoints                   *vtk_points = grid->GetPoints();
+@@ -186,19 +205,11 @@ namespace MetricFlowX
+     }
+ 
+     void
+-    read_cell_data(const std::string &vtk_filename,
+-                   const std::string &cell_data_name,
+-                   Vector<double>    &output_vector)
++    Reader::read_cell_data(const std::string &cell_data_name,
++                           Vector<double>    &output_vector) const
+     {
+-      auto reader = vtkSmartPointer<vtkUnstructuredGridReader>::New();
+-      reader->SetFileName(vtk_filename.c_str());
+-      reader->ReadAllScalarsOn();
+-      reader->ReadAllVectorsOn();
+-      reader->ReadAllFieldsOn();
+-      reader->Update();
+-      vtkUnstructuredGrid *grid = reader->GetOutput();
+-      AssertThrow(grid, ExcMessage("Failed to read VTK file: " + vtk_filename));
+-      vtkDataArray *data_array =
++      vtkUnstructuredGrid *grid = dataset;
++      vtkDataArray        *data_array =
+         grid->GetCellData()->GetArray(cell_data_name.c_str());
+       AssertThrow(data_array,
+                   ExcMessage("Cell data array '" + cell_data_name +
+@@ -212,19 +223,11 @@ namespace MetricFlowX
+     }
+ 
+     void
+-    read_vertex_data(const std::string &vtk_filename,
+-                     const std::string &point_data_name,
+-                     Vector<double>    &output_vector)
++    Reader::read_vertex_data(const std::string &point_data_name,
++                             Vector<double>    &output_vector) const
+     {
+-      auto reader = vtkSmartPointer<vtkUnstructuredGridReader>::New();
+-      reader->SetFileName(vtk_filename.c_str());
+-      reader->ReadAllScalarsOn();
+-      reader->ReadAllVectorsOn();
+-      reader->ReadAllFieldsOn();
+-      reader->Update();
+-      vtkUnstructuredGrid *grid = reader->GetOutput();
+-      AssertThrow(grid, ExcMessage("Failed to read VTK file: " + vtk_filename));
+-      vtkDataArray *data_array =
++      vtkUnstructuredGrid *grid = dataset;
++      vtkDataArray        *data_array =
+         grid->GetPointData()->GetArray(point_data_name.c_str());
+       AssertThrow(data_array,
+                   ExcMessage("Point data array '" + point_data_name +
+@@ -237,6 +240,31 @@ namespace MetricFlowX
+           output_vector[i * n_components + j] = data_array->GetComponent(i, j);
+     }
+ 
++    template <int dim, int spacedim>
++    void
++    read_vtk(const std::string            &filename,
++             Triangulation<dim, spacedim> &tria,
++             const bool                    cleanup)
++    {
++      Reader(filename).read_vtk(tria, cleanup);
++    }
++
++    void
++    read_cell_data(const std::string &filename,
++                   const std::string &name,
++                   Vector<double>    &values)
++    {
++      Reader(filename).read_cell_data(name, values);
++    }
++
++    void
++    read_vertex_data(const std::string &filename,
++                     const std::string &name,
++                     Vector<double>    &values)
++    {
++      Reader(filename).read_vertex_data(name, values);
++    }
++
+     void
+     read_data(const std::string &vtk_filename, Vector<double> &output_vector)
+     {
+@@ -487,6 +515,20 @@ namespace MetricFlowX
+       return distributed_to_serial_vertex_indices;
+     }
+   } // namespace VTKUtils
++
++  template void
++  VTKUtils::Reader::read_vtk(Triangulation<1, 1> &, const bool) const;
++  template void
++  VTKUtils::Reader::read_vtk(Triangulation<1, 2> &, const bool) const;
++  template void
++  VTKUtils::Reader::read_vtk(Triangulation<1, 3> &, const bool) const;
++  template void
++  VTKUtils::Reader::read_vtk(Triangulation<2, 2> &, const bool) const;
++  template void
++  VTKUtils::Reader::read_vtk(Triangulation<2, 3> &, const bool) const;
++  template void
++  VTKUtils::Reader::read_vtk(Triangulation<3, 3> &, const bool) const;
++
+ } // namespace MetricFlowX
+ 
+ 
+@@ -614,6 +656,7 @@ namespace MetricFlowX
+   VTKUtils::distributed_to_serial_vertex_indices(const Triangulation<3, 3> &,
+                                                  const Triangulation<3, 3> &);
+ 
++
+ } // namespace MetricFlowX
+ 
+ 
+diff --git a/tests/CMakeLists.txt b/tests/CMakeLists.txt
+index ffa10c2..db92329 100644
+--- a/tests/CMakeLists.txt
++++ b/tests/CMakeLists.txt
+@@ -1 +1,2 @@
++include_directories(SYSTEM "${PROJECT_SOURCE_DIR}/third_party/rapidcsv")
+ deal_II_pickup_tests()
+diff --git a/tests/test_csv_output.cc b/tests/test_csv_output.cc
+new file mode 100644
+index 0000000..f85a404
+--- /dev/null
++++ b/tests/test_csv_output.cc
+@@ -0,0 +1,147 @@
++#include <deal.II/base/mpi.h>
++
++#include <metric_flow_x/blood_flow_system.h>
++
++#include <filesystem>
++
++#include "rapidcsv.h"
++#include "tests.h"
++
++using namespace dealii;
++using namespace MetricFlowX;
++
++void
++test()
++{
++  const auto        rank  = Utilities::MPI::this_mpi_process(MPI_COMM_WORLD);
++  const std::string dir   = "csv_output";
++  const std::string label = "right, \"iliac\"\nterminal";
++  if (rank == 0)
++    {
++      std::filesystem::remove_all(dir);
++      std::filesystem::create_directories(dir);
++      rapidcsv::Document csv;
++      csv.SetColumnName(0, "boundary_id");
++      csv.SetColumnName(1, "label");
++      csv.SetCell(0, 0, 2);
++      csv.SetCell(1, 0, label);
++      csv.Save(dir + "/input.csv");
++    }
++  MPI_Barrier(MPI_COMM_WORLD);
++  BloodFlowSystem<1, 3> flow;
++  flow.initialize_params(PRM_DIR "constant.prm");
++  flow.vtk_file_path = std::string(METRIC_FLOW_X_SOURCE_DIR) +
++                       "/notebooks/bifurcation_network.vtk";
++  flow.terminal_parameter_source    = "Parameters";
++  flow.terminal_parameters_csv_file = dir + "/input.csv";
++  flow.default_terminal_r1          = 2e7;
++  flow.default_terminal_r2          = 3e7;
++  flow.default_terminal_c           = 0;
++  flow.default_terminal_p_out       = 321;
++  flow.output_directory             = dir;
++  flow.n_global_refinements         = 2;
++  flow.setup();
++  auto y = flow.make_state();
++  flow.initialize_state(y, 0.0);
++  flow.open_output_files();
++  flow.write_output_step(0.0, y);
++  flow.write_output_step(0.125, y);
++  auto pressure = flow.make_state();
++  flow.compute_pressure(y, pressure);
++  flow.output_results(y, pressure, 0);
++  flow.close_csv_files();
++  flow.mass_log.close();
++  // The statistics writer must handle both an existing empty file and append.
++  if (rank == 0)
++    std::ofstream(dir + "/ida_statistics.csv");
++  MPI_Barrier(MPI_COMM_WORLD);
++  SUNDIALS::IDA<VectorType> ida(flow.ida_parameters, MPI_COMM_WORLD);
++  flow.write_ida_statistics(ida, 1.2345678901234567);
++  flow.write_ida_statistics(ida, 2.0);
++  {
++    TimerOutput::Scope timer(flow.computing_timer, "quoted, \"section\"\nname");
++  }
++  flow.write_scaling_timings();
++  flow.write_scaling_timings();
++  MPI_Barrier(MPI_COMM_WORLD);
++  if (rank == 0)
++    {
++      rapidcsv::SeparatorParams separators;
++      separators.mQuotedLinebreaks = true;
++      const auto read              = [&](const std::string &name) {
++        return rapidcsv::Document(dir + "/" + name,
++                                  rapidcsv::LabelParams(),
++                                  separators);
++      };
++      // Locate the parallel record without assuming deal.II's filename suffix.
++      bool visualization_has_vessel_id = false;
++      for (const auto &entry : std::filesystem::directory_iterator(dir))
++        if (entry.path().extension() == ".pvtu")
++          {
++            std::ifstream     input(entry.path());
++            const std::string text((std::istreambuf_iterator<char>(input)), {});
++            visualization_has_vessel_id =
++              text.find("Name=\"vessel_id\"") != std::string::npos;
++          }
++      AssertThrow(visualization_has_vessel_id, ExcInternalError());
++      const auto terminals = read("network_terminals.csv");
++      AssertThrow(terminals.GetRowCount() == 2, ExcInternalError());
++      for (std::size_t row = 0; row < terminals.GetRowCount(); ++row)
++        {
++          const auto bid = terminals.GetCell<unsigned int>("boundary_id", row);
++          const auto vid = terminals.GetCell<unsigned int>("vessel_id", row);
++          const std::string expected = bid == 2 ? label : "boundary_1";
++          AssertThrow(terminals.GetCell<std::string>("label", row) ==
++                          expected &&
++                        terminals.GetCell<double>("R1", row) == 2e7 &&
++                        terminals.GetCell<double>("R2", row) == 3e7 &&
++                        terminals.GetCell<double>("C", row) == 0 &&
++                        terminals.GetCell<double>("P_out", row) == 321,
++                      ExcInternalError());
++          const auto probe =
++            read("HDG_IDA_Vessel_" + std::to_string(vid) + ".csv");
++          AssertThrow(probe.GetRowCount() == 2 &&
++                        probe.GetCell<double>("time_s", 1) == 0.125,
++                      ExcInternalError());
++          for (std::size_t i = 0; i < 2; ++i)
++            AssertThrow(probe.GetCell<std::string>(
++                          "boundary_" + std::to_string(bid) + "_label", i) ==
++                          expected,
++                        ExcInternalError());
++        }
++      const auto mass = read("mass_conservation.csv");
++      AssertThrow(mass.GetRowCount() == 2 && mass.GetColumnCount() == 6 &&
++                    mass.GetCell<double>("t", 1) == 0.125,
++                  ExcInternalError());
++      const auto statistics = read("ida_statistics.csv");
++      AssertThrow(statistics.GetRowCount() == 2 &&
++                    statistics.GetColumnCount() == 11 &&
++                    statistics.GetCell<double>("wall_time", 0) ==
++                      1.2345678901234567 &&
++                    statistics.GetCell<double>("wall_time", 1) == 2.0,
++                  ExcInternalError());
++      const auto   timings = read("scaling_timings.csv");
++      unsigned int matches = 0;
++      for (std::size_t row = 0; row < timings.GetRowCount(); ++row)
++        if (timings.GetCell<std::string>("section", row) ==
++            "quoted, \"section\"\nname")
++          ++matches;
++      AssertThrow(matches == 2, ExcInternalError());
++      unsigned int probes = 0;
++      for (const auto &entry : std::filesystem::directory_iterator(dir))
++        if (entry.path().filename().string().find("HDG_IDA_Vessel_") == 0)
++          ++probes;
++      AssertThrow(probes == flow.vessel_map.size(), ExcInternalError());
++    }
++  deallog.depth_file(10);
++  deallog << "CSV labels, escaping, append and MPI probe ownership: PASSED"
++          << std::endl;
++}
++
++int
++main(int argc, char **argv)
++{
++  Utilities::MPI::MPI_InitFinalize mpi(argc, argv, 1);
++  initlog();
++  test();
++}
+diff --git a/tests/test_csv_output.output b/tests/test_csv_output.output
+new file mode 100644
+index 0000000..1068761
+--- /dev/null
++++ b/tests/test_csv_output.output
+@@ -0,0 +1,2 @@
++
++DEAL::CSV labels, escaping, append and MPI probe ownership: PASSED
+diff --git a/tests/test_inflow_integration.py b/tests/test_inflow_integration.py
+new file mode 100644
+index 0000000..e9d5f1e
+--- /dev/null
++++ b/tests/test_inflow_integration.py
+@@ -0,0 +1,106 @@
++#!/usr/bin/env python3
++"""Compare analytic/CSV inflow and actual terminal traces at one/two MPI ranks."""
++import argparse
++import csv
++import math
++import os
++from pathlib import Path
++import shutil
++import subprocess
++import tempfile
++
++ROOT = Path(__file__).resolve().parents[1]
++
++
++def validate(executable, destination, mpi):
++    destination.mkdir(parents=True, exist_ok=True)
++    source = (ROOT / "parameters/constant.prm.in").read_text().replace("@SOURCE_DIR@", str(ROOT))
++    source = source.replace("= 4\n", "= 3\n").replace("= 1.1\n", "= 0.01\n")
++    source = source.replace("= 0.005\n", "= 0.001\n").replace("= 1e-06", "= 1e-12")
++    source = source.replace("= 1e-05", "= 1e-07").replace("= HLL\n", "= HLL_HDG\n")
++    source = source.replace("set Inflow function = 0.0", "set Inflow function = 1e-8 - 2e-6*abs(t-0.005)")
++    waveform = destination / "inflow.csv"
++    waveform.write_text('"note","flow_m3_s","time_s"\n'
++                        '"start, zero",0,0\n'
++                        '"peak\nannotation",1e-8,0.005\n'
++                        'end,0,0.01\n')
++    traces = {}
++    environment = dict(os.environ, OMP_NUM_THREADS="1", OPENBLAS_NUM_THREADS="1",
++                       OMPI_ALLOW_RUN_AS_ROOT="1", OMPI_ALLOW_RUN_AS_ROOT_CONFIRM="1")
++    ranks_to_check = (1, 2) if mpi else (1,)
++    launcher = shutil.which("mpirun") if mpi else None
++    if mpi and not launcher:
++        raise RuntimeError("MPI validation requested but mpirun is unavailable")
++    for ranks in ranks_to_check:
++        for kind in ("analytic", "csv"):
++            folder = destination / f"{kind}-{ranks}"
++            folder.mkdir(exist_ok=True)
++            text = source
++            if ranks > 1:
++                text = text.replace("set Use direct solver            = true", "set Use direct solver            = false")
++            extra = f"  set Write terminal CSV files = true\n  set Output directory = {folder / 'output'}\n"
++            if kind == "csv":
++                extra += f"  set Inflow CSV file = {waveform}\n"
++            text = text.replace("  set Output filename", extra + "  set Output filename")
++            (folder / "parameters.prm").write_text(text)
++            command = ([launcher, "-n", str(ranks)] if launcher else []) + [str(executable), "parameters.prm"]
++            result = subprocess.run(command, cwd=folder, env=environment,
++                                    capture_output=True, text=True, timeout=90)
++            (folder / "run.log").write_text(result.stdout + result.stderr)
++            if result.returncode:
++                raise RuntimeError(f"{kind}, ranks={ranks}: {result.stdout}\n{result.stderr}")
++            files = sorted((folder / "output").glob("terminal_*.csv"))
++            assert [path.name for path in files] == ["terminal_0.csv", "terminal_1.csv"]
++            traces[kind, ranks] = {}
++            for path in files:
++                with path.open() as stream:
++                    rows = list(csv.DictReader(stream))
++                assert len(rows) == 11
++                boundary = int(path.stem.removeprefix("terminal_"))
++                assert all(row["label"] == f"boundary_{boundary}" for row in rows)
++                numeric = [{key: float(value) for key, value in row.items() if key != "label"} for row in rows]
++                assert all(math.isfinite(value) for row in numeric for value in row.values())
++                assert abs(numeric[-1]["time_s"] - 0.01) < 1e-14
++                traces[kind, ranks][path.name] = numeric
++            inlet = traces[kind, ranks]["terminal_0.csv"]
++            error = max(abs(row["flow_m3_s"] + max(0, 1e-8 - 2e-6 * abs(row["time_s"] - 0.005))) for row in inlet)
++            assert error < 5e-11, (kind, ranks, error)
++            assert max(abs(row["flow_m3_s"]) for row in inlet) > 0.99e-8
++    reference = traces["analytic", 1]
++    for key, case in traces.items():
++        for terminal, rows in case.items():
++            for actual, expected in zip(rows, reference[terminal]):
++                assert abs(actual["time_s"] - expected["time_s"]) < 1e-14
++                assert abs(actual["flow_m3_s"] - expected["flow_m3_s"]) < 1e-12, key
++                assert abs(actual["pressure_Pa"] - expected["pressure_Pa"]) < 1e-3, key
++    # Reject insufficient coverage before the runner creates terminal files.
++    bad = destination / "uncovered"
++    bad.mkdir(exist_ok=True)
++    csv_path = bad / "short.csv"
++    output_path = bad / "output"
++    csv_path.write_text("time_s,flow_m3_s\n0,0\n0.005,1e-8\n")
++    extra = f"  set Inflow CSV file = {csv_path}\n  set Write terminal CSV files = true\n  set Output directory = {output_path}\n"
++    (bad / "parameters.prm").write_text(source.replace("  set Output filename", extra + "  set Output filename"))
++    result = subprocess.run([str(executable), "parameters.prm"], cwd=bad,
++                            env=environment, capture_output=True, text=True, timeout=30)
++    assert result.returncode != 0
++    assert "extrapolation" in result.stdout + result.stderr
++    assert not list(output_path.glob("terminal_*.csv"))
++    print(f"Analytic/CSV inflow and terminal traces agree for MPI ranks {ranks_to_check}; inlet flow is nonzero.")
++
++
++def main():
++    parser = argparse.ArgumentParser(description=__doc__)
++    parser.add_argument("--executable", type=Path, required=True)
++    parser.add_argument("--workdir", type=Path)
++    parser.add_argument("--mpi", action="store_true")
++    args = parser.parse_args()
++    if args.workdir:
++        validate(args.executable.resolve(), args.workdir.resolve(), args.mpi)
++    else:
++        with tempfile.TemporaryDirectory() as folder:
++            validate(args.executable.resolve(), Path(folder), args.mpi)
++
++
++if __name__ == "__main__":
++    main()
+diff --git a/tests/test_inflow_series.cc b/tests/test_inflow_series.cc
+new file mode 100644
+index 0000000..a0405fa
+--- /dev/null
++++ b/tests/test_inflow_series.cc
+@@ -0,0 +1,134 @@
++#include <deal.II/base/mpi.h>
++
++#include <metric_flow_x/inflow_series.h>
++
++#include <fstream>
++#include <iomanip>
++
++#include "tests.h"
++
++using namespace dealii;
++using namespace MetricFlowX;
++
++void
++test()
++{
++  const auto write = [](const std::string &content) {
++    std::ofstream file("inflow.csv", std::ios::binary);
++    file << content;
++  };
++  write("time_s,flow_m3_s\r\n0,0\r\n0.5,1e-8\r\n1,0\r\n");
++  InflowSeries data;
++  data.read("inflow.csv");
++  for (const double time : {0.0, 0.25, 0.5, 0.75, 1.0})
++    AssertThrow(std::abs(data.value(time) -
++                         (1e-8 - 2e-8 * std::abs(time - 0.5))) < 1e-23,
++                ExcInternalError());
++  for (const double time : {-0.01, 1.01})
++    {
++      bool rejected = false;
++      try
++        {
++          data.value(time);
++        }
++      catch (const std::out_of_range &)
++        {
++          rejected = true;
++        }
++      AssertThrow(rejected, ExcInternalError());
++    }
++  data.read("inflow.csv", 1.0);
++  AssertThrow(data.value(1.25) == data.value(0.25), ExcInternalError());
++  AssertThrow(data.value(-0.25) == data.value(0.75), ExcInternalError());
++  for (const auto &content : {"time,flow\n0,0\n1,0\n",
++                              "time_s,flow_m3_s\n0,0\n",
++                              "time_s,flow_m3_s\n0,0\n0,1\n",
++                              "time_s,flow_m3_s\n1,0\n0,1\n",
++                              "time_s,flow_m3_s\n0,0\n1,nan\n",
++                              "time_s,flow_m3_s\n0,0\n1,0,7\n",
++                              "time_s,flow_m3_s\n0,0\n1,\n",
++                              "time_s,flow_m3_s\n0,0\n1,1e-8suffix\n",
++                              "time_s,flow_m3_s\n0,0\n1suffix,1e-8\n",
++                              "time_s,flow_m3_s\n0,0\n1,inf\n",
++                              "time_s,flow_m3_s\n0,0\n1,1e999\n",
++                              "time_s,flow_m3_s\n0,0\n1\n",
++                              "time_s,time_s,flow_m3_s\n0,0,0\n1,1,0\n",
++                              "time_s,flow_m3_s,note,note\n0,0,a,b\n1,0,a,b\n",
++                              "time_s,flow_m3_s,\n0,0,a\n1,0,a\n"})
++    {
++      write(content);
++      bool rejected = false;
++      try
++        {
++          data.read("inflow.csv");
++        }
++      catch (const std::invalid_argument &)
++        {
++          rejected = true;
++        }
++      AssertThrow(rejected, ExcInternalError());
++    }
++  write("time_s,flow_m3_s\n0,0\n1,1e-8\n");
++  for (const double period :
++       {-1.0, 0.5, 1.0, std::numeric_limits<double>::infinity()})
++    {
++      bool rejected = false;
++      try
++        {
++          data.read("inflow.csv", period);
++        }
++      catch (const std::invalid_argument &)
++        {
++          rejected = true;
++        }
++      AssertThrow(rejected, ExcInternalError());
++    }
++  // Named columns and quoting are handled by the same rapidcsv dependency as
++  // the terminal-parameter table. Only the two selected columns are numeric.
++  write("\xef\xbb\xbf\"note\", \"flow_m3_s\", \"time_s\"\r\n"
++        "\"unused, multiline\nmetadata\", \"0\", \"0\"\r\n"
++        "ignored,1e-8,1\r\n");
++  data.read("inflow.csv");
++  AssertThrow(std::abs(data.value(0.25) - 2.5e-9) < 1e-23, ExcInternalError());
++  bool missing_rejected = false;
++  try
++    {
++      data.read("missing_inflow.csv");
++    }
++  catch (const std::invalid_argument &)
++    {
++      missing_rejected = true;
++    }
++  AssertThrow(missing_rejected, ExcInternalError());
++
++  // A 20-second history at 1 ms with 40 fields uses named time/flow columns;
++  // the other 38 fields need not be numbers.
++  {
++    std::ofstream file("inflow.csv");
++    file << "flow_m3_s,time_s";
++    for (unsigned int column = 0; column < 38; ++column)
++      file << ",extra_" << column;
++    file << '\n' << std::setprecision(17);
++    for (unsigned int step = 0; step <= 20000; ++step)
++      {
++        const double t = step * 1e-3;
++        file << 1e-8 + 2e-9 * t << ',' << t;
++        for (unsigned int column = 0; column < 38; ++column)
++          file << ",not_numeric";
++        file << '\n';
++      }
++  }
++  data.read("inflow.csv");
++  for (const double t : {0., 0.0005, 0.001, 10.1235, 19.9995, 20.})
++    AssertThrow(std::abs(data.value(t) - (1e-8 + 2e-9 * t)) < 1e-20,
++                ExcInternalError());
++  deallog << "SI inflow interpolation and validation: PASSED" << std::endl;
++}
++
++int
++main(int argc, char **argv)
++{
++  Utilities::MPI::MPI_InitFinalize mpi(argc, argv, 1);
++  initlog();
++  test();
++}
+diff --git a/tests/test_inflow_series.output b/tests/test_inflow_series.output
+new file mode 100644
+index 0000000..6075b64
+--- /dev/null
++++ b/tests/test_inflow_series.output
+@@ -0,0 +1,2 @@
++
++DEAL::SI inflow interpolation and validation: PASSED
+diff --git a/tests/test_iterative_trace_initialization.cc b/tests/test_iterative_trace_initialization.cc
+new file mode 100644
+index 0000000..2013980
+--- /dev/null
++++ b/tests/test_iterative_trace_initialization.cc
+@@ -0,0 +1,44 @@
++#include <deal.II/base/mpi.h>
++
++#include <metric_flow_x/blood_flow_system.h>
++
++#include "tests.h"
++
++using namespace dealii;
++using namespace MetricFlowX;
++
++void
++test()
++{
++  BloodFlowSystem<1, 3> flow;
++  flow.initialize_params(PRM_DIR "multi_vessel.prm");
++  flow.use_direct_solver = false;
++  flow.setup();
++  auto state = flow.make_state();
++  flow.initialize_state(state, 0.0);
++  flow.update_ghosted_vectors(state);
++  auto residual = flow.make_state();
++  residual      = 0.0;
++  flow.assemble_trace_interior_equations(flow.y_relevant, residual);
++  flow.assemble_trace_boundary_equations(0.0, flow.y_relevant, residual);
++  flow.assemble_trace_junction_equations(flow.y_relevant, residual);
++  flow.assemble_trace_continuity_equations(flow.y_relevant, residual);
++  residual.compress(VectorOperation::add);
++  double local = 0.0;
++  for (const auto i : flow.trace_dofs_owned)
++    local += residual(i) * residual(i);
++  AssertThrow(
++    std::sqrt(Utilities::MPI::sum(local, flow.mpi_communicator())) < 1e-10,
++    ExcMessage("Iterative initialization must satisfy trace equations."));
++  deallog.depth_file(10);
++  deallog << "Iterative trace initialization with nonzero inflow: PASSED"
++          << std::endl;
++}
++
++int
++main(int argc, char **argv)
++{
++  Utilities::MPI::MPI_InitFinalize mpi(argc, argv, 1);
++  initlog();
++  test();
++}
+diff --git a/tests/test_iterative_trace_initialization.output b/tests/test_iterative_trace_initialization.output
+new file mode 100644
+index 0000000..bd2e899
+--- /dev/null
++++ b/tests/test_iterative_trace_initialization.output
+@@ -0,0 +1,2 @@
++
++DEAL::Iterative trace initialization with nonzero inflow: PASSED
+diff --git a/tests/test_terminal_exports.cc b/tests/test_terminal_exports.cc
+new file mode 100644
+index 0000000..002ce18
+--- /dev/null
++++ b/tests/test_terminal_exports.cc
+@@ -0,0 +1,93 @@
++#include <deal.II/base/mpi.h>
++
++#include <metric_flow_x/blood_flow_system.h>
++
++#include <filesystem>
++
++#include "rapidcsv.h"
++#include "tests.h"
++
++using namespace dealii;
++using namespace MetricFlowX;
++
++void
++test()
++{
++  BloodFlowSystem<1, 3> flow;
++  flow.initialize_params(PRM_DIR "constant.prm");
++  flow.setup();
++  AssertThrow(flow.rcr_map.at(1).label == "boundary_1", ExcInternalError());
++  const std::string label  = "right, \"iliac\"\nterminal";
++  flow.rcr_map.at(1).label = label;
++  auto y                   = flow.make_state();
++  flow.initialize_state(y, 0.0);
++  const double     area     = 1.2 * flow.vessel_properties(0).a_d;
++  constexpr double velocity = 0.13;
++  flow.set_external_pressure_provider([](const auto &) { return 234.0; });
++  for (const auto &cell : flow.dof_handler_.active_cell_iterators())
++    if (cell->is_locally_owned())
++      for (const auto face : cell->face_indices())
++        if (cell->face(face)->at_boundary())
++          {
++            const auto &trace =
++              flow.face_dof_map.at(flow.canonical_face_key(cell, face));
++            y(trace.a_hat_dof) = area;
++            y(trace.u_hat_dof) = velocity;
++          }
++  y.compress(VectorOperation::insert);
++  flow.write_terminal_csv = true;
++  flow.output_directory   = "terminal-output";
++  flow.open_csv_files();
++  AssertThrow(Utilities::MPI::sum(static_cast<unsigned int>(
++                                    flow.csv_terminal.size()),
++                                  flow.mpi_communicator()) == 2,
++              ExcInternalError());
++  flow.write_csv_row(0.005, y);
++  flow.close_csv_files();
++  MPI_Barrier(flow.mpi_communicator());
++  if (Utilities::MPI::this_mpi_process(flow.mpi_communicator()) == 0)
++    for (const unsigned int boundary : {0, 1})
++      {
++        rapidcsv::SeparatorParams separators;
++        separators.mQuotedLinebreaks = true;
++        const rapidcsv::Document       input("terminal-output/terminal_" +
++                                         std::to_string(boundary) + ".csv",
++                                       rapidcsv::LabelParams(),
++                                       separators);
++        const std::vector<std::string> header{"time_s",
++                                              "pressure_Pa",
++                                              "flow_m3_s",
++                                              "boundary_id",
++                                              "vessel_id",
++                                              "label"};
++        AssertThrow(input.GetColumnNames() == header &&
++                      input.GetRowCount() == 1,
++                    ExcInternalError());
++        const auto time     = input.GetCell<double>("time_s", 0);
++        const auto pressure = input.GetCell<double>("pressure_Pa", 0);
++        const auto flux     = input.GetCell<double>("flow_m3_s", 0);
++        const auto bid      = input.GetCell<unsigned int>("boundary_id", 0);
++        const auto vid      = input.GetCell<unsigned int>("vessel_id", 0);
++        AssertThrow(input.GetCell<std::string>("label", 0) ==
++                      (boundary == 0 ? "boundary_0" : label),
++                    ExcInternalError());
++        AssertThrow(time == 0.005 && bid == boundary && vid == 0,
++                    ExcInternalError());
++        AssertThrow(std::abs(pressure - flow.pressure(area, 0) - 234.0) < 1e-9,
++                    ExcInternalError());
++        AssertThrow(std::abs(flux - (boundary == 0 ? -1 : 1) * area *
++                                      velocity) < 1e-16,
++                    ExcInternalError());
++      }
++  deallog.depth_file(10);
++  deallog << "Terminal trace values and unique MPI file ownership: PASSED"
++          << std::endl;
++}
++
++int
++main(int argc, char **argv)
++{
++  Utilities::MPI::MPI_InitFinalize mpi(argc, argv, 1);
++  initlog();
++  test();
++}
+diff --git a/tests/test_terminal_exports.output b/tests/test_terminal_exports.output
+new file mode 100644
+index 0000000..44366c9
+--- /dev/null
++++ b/tests/test_terminal_exports.output
+@@ -0,0 +1,2 @@
++
++DEAL::Terminal trace values and unique MPI file ownership: PASSED
+diff --git a/tests/test_terminal_parameters.cc b/tests/test_terminal_parameters.cc
+new file mode 100644
+index 0000000..c213388
+--- /dev/null
++++ b/tests/test_terminal_parameters.cc
+@@ -0,0 +1,293 @@
++#include <deal.II/base/mpi.h>
++
++#include <metric_flow_x/blood_flow_system.h>
++#include <metric_flow_x/io/vtk_utils.h>
++
++#include <filesystem>
++
++#include "rapidcsv.h"
++#include "tests.h"
++
++using namespace dealii;
++using namespace MetricFlowX;
++
++void
++test()
++{
++  const auto write = [](const std::string &name, const std::string &content) {
++    if (Utilities::MPI::this_mpi_process(MPI_COMM_WORLD) == 0)
++      {
++        std::ofstream file(name);
++        file << content;
++      }
++    MPI_Barrier(MPI_COMM_WORLD);
++  };
++  const std::set<types::boundary_id> ids{1, 2};
++  {
++    BloodFlowSystem<1, 3> flow;
++    flow.default_terminal_r1    = 2e7;
++    flow.default_terminal_r2    = 3e7;
++    flow.default_terminal_c     = 0;
++    flow.default_terminal_p_out = 321;
++    auto values                 = flow.read_terminal_parameters(ids);
++    AssertThrow(values.size() == 2 && values.at(1).R1 == 2e7 &&
++                  values.at(2).C == 0 && values.at(1).label == "boundary_1" &&
++                  values.at(2).label == "boundary_2",
++                ExcInternalError());
++    flow.terminal_parameters_csv_file = "terminal.csv";
++    write("terminal.csv", "boundary_id,R1,R2,C\n2,1e7,4e7,1e-8\n");
++    values = flow.read_terminal_parameters(ids);
++    AssertThrow(values.at(1).R1 == 2e7 && values.at(1).C == 0 &&
++                  values.at(2).R1 == 1e7 && values.at(2).C == 1e-8 &&
++                  values.at(2).P_out == 321,
++                ExcInternalError());
++    write("terminal.csv", "boundary_id,R1,R2,C\n1,7,8,0\n2,9,10,1e-8\n");
++    values = flow.read_terminal_parameters(ids);
++    AssertThrow(values.at(1).R1 == 7 && values.at(2).R2 == 10,
++                ExcInternalError());
++    // rapidcsv handles quoted fields, whitespace, UTF-8 BOM and CRLF.
++    write("terminal.csv",
++          "\xef\xbb\xbf\"boundary_id\",\"R1\",\"R2\",\"C\"\r\n"
++          "\"2\", \"1e7\", \"4e7\", \"1e-8\"\r\n");
++    values = flow.read_terminal_parameters(ids);
++    AssertThrow(values.at(1).R1 == 2e7 && values.at(2).R1 == 1e7 &&
++                  values.at(2).R2 == 4e7 && values.at(2).C == 1e-8 &&
++                  values.at(2).P_out == 321,
++                ExcInternalError());
++    write("terminal.csv", "boundary_id,R1,R2,C\n");
++    values = flow.read_terminal_parameters(ids);
++    AssertThrow(values.at(1).R1 == 2e7 && values.at(2).R2 == 3e7,
++                ExcInternalError());
++    // Column labels, not their positions, select parameters. Other data are
++    // ignored.
++    write("terminal.csv",
++          "C,note,boundary_id,R2,R1\n"
++          "1e-8,\"external, measurement\nnot used by RCR\",2,4e7,1e7\n");
++    values = flow.read_terminal_parameters(ids);
++    AssertThrow(values.at(1).R1 == 2e7 && values.at(2).R1 == 1e7 &&
++                  values.at(2).R2 == 4e7 && values.at(2).C == 1e-8,
++                ExcInternalError());
++    write("terminal.csv", "label,R2,boundary_id\nunused,4e7,2\n");
++    values = flow.read_terminal_parameters(ids);
++    AssertThrow(values.at(2).R1 == 2e7 && values.at(2).R2 == 4e7 &&
++                  values.at(2).C == 0 && values.at(2).P_out == 321 &&
++                  values.at(2).label == "unused",
++                ExcInternalError());
++    write("terminal.csv",
++          "boundary_id,R1,R2,C,external_pressure\n"
++          "1, ,4e7,,not_a_number\n2,1e7, ,1e-8,not_used\n");
++    values = flow.read_terminal_parameters(ids);
++    AssertThrow(values.at(1).R1 == 2e7 && values.at(1).R2 == 4e7 &&
++                  values.at(1).C == 0 && values.at(2).R1 == 1e7 &&
++                  values.at(2).R2 == 3e7 && values.at(2).C == 1e-8,
++                ExcInternalError());
++    write("terminal.csv",
++          "boundary_id,label\n1, \n2,\"right, \"\"iliac\"\"\nterminal\"\n");
++    values = flow.read_terminal_parameters(ids);
++    AssertThrow(values.at(1).label == "boundary_1" &&
++                  values.at(2).label == "right, \"iliac\"\nterminal" &&
++                  values.at(2).R1 == 2e7,
++                ExcInternalError());
++    for (const auto &bad :
++         {"boundary_id,R1,R2,C\n2,1,2,0\n2,1,2,0\n",
++          "boundary_id,R1,R2,C\n0,1,2,0\n",
++          "boundary_id,R1,R2,C\n999,1,2,0\n",
++          "boundary_id,R1,R2,C\n1,-1,2,0\n",
++          "boundary_id,R1,R2,C\n1,0,0,0\n",
++          "boundary_id,R1,R2,C\n1,1,0,1\n",
++          "boundary_id,R1,R2,C\n1,1,2,-1\n",
++          "boundary_id,R1,R2,C\n1,nan,2,0\n",
++          "boundary_id,R1,R2,C\n1,1,2,0,8\n",
++          "boundary_id,R1,R2,C\n-1,1,2,0\n",
++          "wrong_header\n1,1,2,0\n",
++          "boundary_id,R1,R2,C\n1,1,2\n",
++          "R1,R2,C\n1,2,0\n",
++          "boundary_id,R1,R1\n1,2,3\n",
++          "boundary_id,R1,note,note\n1,2,a,b\n",
++          "boundary_id,R1,\n1,2,a\n",
++          "boundary_id,pressure_pa\n1,12000\n",
++          "boundary_id,R2,C\n1,0,1e-8\n",
++          "boundary_id,R1,R2,C\n1,1e7suffix,2,0\n",
++          "boundary_id,R1,R2,C\n1,1,2,0suffix\n",
++          "boundary_id,R1,R2,C\n1suffix,1,2,0\n",
++          "boundary_id,R1,R2,C\n18446744073709551616,1,2,0\n"})
++      {
++        write("terminal.csv", bad);
++        bool rejected = false;
++        try
++          {
++            flow.read_terminal_parameters(ids);
++          }
++        catch (const std::exception &)
++          {
++            rejected = true;
++          }
++        AssertThrow(rejected, ExcInternalError());
++      }
++    flow.terminal_parameters_csv_file = "missing-terminal.csv";
++    bool rejected                     = false;
++    try
++      {
++        flow.read_terminal_parameters(ids);
++      }
++    catch (const std::exception &)
++      {
++        rejected = true;
++      }
++    AssertThrow(rejected, ExcInternalError());
++  }
++
++  ParameterAcceptor::clear();
++  const std::string mesh = std::string(METRIC_FLOW_X_SOURCE_DIR) +
++                           "/notebooks/bifurcation_network.vtk";
++  // The new mode must load geometry and boundary IDs without any RCR arrays.
++  std::ifstream      original(mesh);
++  std::ostringstream geometry;
++  std::string        line;
++  bool               skip = false;
++  while (std::getline(original, line))
++    {
++      if (line.rfind("SCALARS ", 0) == 0)
++        skip = line.rfind("SCALARS R1 ", 0) == 0 ||
++               line.rfind("SCALARS R2 ", 0) == 0 ||
++               line.rfind("SCALARS C ", 0) == 0 ||
++               line.rfind("SCALARS P_out ", 0) == 0;
++      if (!skip)
++        geometry << line << '\n';
++    }
++  write("geometry.vtk", geometry.str());
++  write("terminal.csv", "boundary_id,R1,R2,C\n2,1e7,4e7,1e-8\n");
++  const auto absolute_mesh = std::filesystem::absolute("geometry.vtk").string();
++  write(
++    "terminal.prm",
++    "subsection MetricFlowSystem<1, 3>\n"
++    "set Vtk file path for mesh input = " +
++      absolute_mesh +
++      "\n"
++      "set Terminal parameter source = Parameters\n"
++      "set Terminal parameters CSV file = " +
++      std::filesystem::absolute("terminal.csv").string() +
++      "\n"
++      "set Default terminal R1 = 2e7\nset Default terminal R2 = 3e7\n"
++      "set Default terminal C = 0\nset Default terminal P_out = 321\n"
++      "set Number of global refinement = 1\nset Verbosity (console depth) = 0\nend\n");
++  {
++    BloodFlowSystem<1, 3> flow;
++    flow.initialize_params("terminal.prm");
++    flow.setup();
++    AssertThrow(flow.rcr_map.size() == 2 && flow.rcr_pc_dof.size() == 1,
++                ExcInternalError());
++    AssertThrow(flow.rcr_map.at(1).R1 == 2e7 && flow.rcr_map.at(2).R1 == 1e7 &&
++                  flow.rcr_map.at(2).P_out == 321,
++                ExcInternalError());
++    AssertThrow(Utilities::MPI::sum(flow.rcr_dofs_owned.n_elements(),
++                                    MPI_COMM_WORLD) == 1,
++                ExcInternalError());
++  }
++  ParameterAcceptor::clear();
++  // Match complete CSV input to a legacy VTK case, including nonzero-state
++  // residuals and both Jacobian blocks. This requires no linear solve.
++  std::string                               complete_csv;
++  double                                    legacy_p_out = 0;
++  std::map<types::global_dof_index, double> reference_residual;
++  using Entry = std::pair<types::global_dof_index, types::global_dof_index>;
++  std::map<Entry, double> reference_state, reference_derivative;
++  for (unsigned int mode = 0; mode < 2; ++mode)
++    {
++      ParameterAcceptor::clear();
++      BloodFlowSystem<1, 3> flow;
++      flow.initialize_params(PRM_DIR "constant.prm");
++      flow.vtk_file_path        = mode == 0 ? mesh : absolute_mesh;
++      flow.n_global_refinements = 1;
++      if (mode == 1)
++        {
++          flow.terminal_parameter_source    = "Parameters";
++          flow.terminal_parameters_csv_file = "complete.csv";
++          flow.default_terminal_p_out       = legacy_p_out;
++          write("complete.csv", complete_csv);
++        }
++      flow.setup();
++      if (mode == 0)
++        {
++          rapidcsv::Document csv;
++          for (const auto &[index, name] :
++               std::vector<std::pair<unsigned int, std::string>>{
++                 {0, "boundary_id"}, {1, "R1"}, {2, "R2"}, {3, "C"}})
++            csv.SetColumnName(index, name);
++          legacy_p_out    = flow.rcr_map.begin()->second.P_out;
++          std::size_t row = 0;
++          for (const auto &[id, values] : flow.rcr_map)
++            {
++              AssertThrow(values.P_out == legacy_p_out, ExcInternalError());
++              csv.SetCell(0, row, id);
++              csv.SetCell(1, row, values.R1);
++              csv.SetCell(2, row, values.R2);
++              csv.SetCell(3, row, values.C);
++              ++row;
++            }
++          std::ostringstream csv_text;
++          csv.Save(csv_text);
++          complete_csv = csv_text.str();
++        }
++      auto y        = flow.make_state();
++      auto ydot     = flow.make_state();
++      auto residual = flow.make_state();
++      y             = 0.0;
++      ydot          = 0.01;
++      std::vector<types::global_dof_index> indices(flow.fe_->n_dofs_per_cell());
++      for (const auto &cell : flow.dof_handler_.active_cell_iterators())
++        if (cell->is_locally_owned())
++          {
++            cell->get_dof_indices(indices);
++            for (unsigned int i = 0; i < indices.size(); ++i)
++              y(indices[i]) =
++                flow.fe_->system_to_component_index(i).first % 2 == 0 ?
++                  1.1 * flow.vessel_map.at(cell->material_id()).a_d :
++                  0.05;
++          }
++      for (const auto i : flow.rcr_dofs_owned)
++        y(i) = 9000.0;
++      y.compress(VectorOperation::insert);
++      flow.assemble_residual(0.1, y, ydot, residual);
++      flow.assemble_state_jacobian(0.1, y, ydot);
++      flow.assemble_derivative_jacobian(0.1, y, ydot);
++      for (const auto i : flow.locally_owned_dofs_)
++        {
++          if (mode == 0)
++            reference_residual[i] = residual(i);
++          else
++            AssertThrow(std::abs(residual(i) - reference_residual.at(i)) <
++                          1e-12 * std::max(1.0, std::abs(residual(i))),
++                        ExcInternalError());
++        }
++      const auto compare = [&](const MatrixType        &matrix,
++                               std::map<Entry, double> &reference) {
++        for (const auto row : flow.locally_owned_dofs_)
++          for (auto entry = matrix.begin(row); entry != matrix.end(row);
++               ++entry)
++            {
++              const Entry key{row, entry->column()};
++              if (mode == 0)
++                reference[key] = entry->value();
++              else
++                AssertThrow(std::abs(entry->value() - reference.at(key)) <
++                              1e-12 * std::max(1.0, std::abs(entry->value())),
++                            ExcInternalError());
++            }
++      };
++      compare(flow.state_jacobian_matrix(), reference_state);
++      compare(flow.derivative_jacobian_matrix(), reference_derivative);
++    }
++  deallog.depth_file(10);
++  deallog
++    << "Terminal CSV defaults, overrides, validation and capacitor ownership: PASSED"
++    << std::endl;
++}
++
++int
++main(int argc, char **argv)
++{
++  Utilities::MPI::MPI_InitFinalize mpi(argc, argv, 1);
++  initlog();
++  test();
++}
+diff --git a/tests/test_terminal_parameters.output b/tests/test_terminal_parameters.output
+new file mode 100644
+index 0000000..1e5aa5f
+--- /dev/null
++++ b/tests/test_terminal_parameters.output
+@@ -0,0 +1,2 @@
++
++DEAL::Terminal CSV defaults, overrides, validation and capacitor ownership: PASSED
+diff --git a/third_party/rapidcsv/.clang-format b/third_party/rapidcsv/.clang-format
+new file mode 100644
+index 0000000..9d15924
+--- /dev/null
++++ b/third_party/rapidcsv/.clang-format
+@@ -0,0 +1,2 @@
++DisableFormat: true
++SortIncludes: false
+diff --git a/third_party/rapidcsv/LICENSE.md b/third_party/rapidcsv/LICENSE.md
+new file mode 100644
+index 0000000..c96136d
+--- /dev/null
++++ b/third_party/rapidcsv/LICENSE.md
+@@ -0,0 +1,29 @@
++BSD 3-Clause License
++
++Copyright (c) 2017, Kristofer Berggren
++All rights reserved.
++
++Redistribution and use in source and binary forms, with or without
++modification, are permitted provided that the following conditions are met:
++
++* Redistributions of source code must retain the above copyright notice, this
++  list of conditions and the following disclaimer.
++
++* Redistributions in binary form must reproduce the above copyright notice,
++  this list of conditions and the following disclaimer in the documentation
++  and/or other materials provided with the distribution.
++
++* Neither the name of the copyright holder nor the names of its
++  contributors may be used to endorse or promote products derived from
++  this software without specific prior written permission.
++
++THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS "AS IS"
++AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE
++IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE ARE
++DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT HOLDER OR CONTRIBUTORS BE LIABLE
++FOR ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR CONSEQUENTIAL
++DAMAGES (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR
++SERVICES; LOSS OF USE, DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER
++CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY,
++OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
++OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
+diff --git a/third_party/rapidcsv/README.md b/third_party/rapidcsv/README.md
+new file mode 100644
+index 0000000..f5bbe2a
+--- /dev/null
++++ b/third_party/rapidcsv/README.md
+@@ -0,0 +1,13 @@
++# rapidcsv
++
++Vendored header-only dependency used to read terminal RCR and tabulated inflow
++CSV files.
++
++- Upstream: https://github.com/d99kris/rapidcsv
++- Version: v9.07
++- Commit: cbd8a0a937b249cc07e2db3bfa9cd2cc1689708f
++- Files: `src/rapidcsv.h` copied unchanged as `rapidcsv.h`; upstream `LICENSE`
++  copied unchanged as `LICENSE.md` (BSD 3-Clause).
++
++Only the library implementation includes this header. It is a private build
++dependency and is not required by installed-package consumers.
+diff --git a/third_party/rapidcsv/rapidcsv.h b/third_party/rapidcsv/rapidcsv.h
+new file mode 100644
+index 0000000..3a145ef
+--- /dev/null
++++ b/third_party/rapidcsv/rapidcsv.h
+@@ -0,0 +1,2166 @@
++/*
++ * rapidcsv.h
++ *
++ * URL:      https://github.com/d99kris/rapidcsv
++ * Version:  9.07
++ *
++ * Copyright (c) 2017-2026 Kristofer Berggren
++ * All rights reserved.
++ *
++ * rapidcsv is distributed under the BSD 3-Clause license, see LICENSE for details.
++ *
++ */
++
++#pragma once
++
++#include <algorithm>
++#include <cassert>
++#include <cmath>
++#include <cstddef>
++#include <cstdint>
++#include <fstream>
++#include <functional>
++#include <iomanip>
++#include <iostream>
++#include <limits>
++#include <locale>
++#include <map>
++#include <sstream>
++#include <string>
++#include <typeinfo>
++#include <vector>
++
++namespace rapidcsv
++{
++#if defined(_MSC_VER)
++  static const bool sPlatformHasCR = true;
++#else
++  static const bool sPlatformHasCR = false;
++#endif
++  static const std::vector<char> s_Utf8BOM = { '\xef', '\xbb', '\xbf' };
++
++  /**
++   * @brief     Datastructure holding parameters controlling how invalid numbers (including
++   *            empty strings) should be handled.
++   */
++  struct ConverterParams
++  {
++    /**
++     * @brief   Constructor
++     * @param   pHasDefaultConverter  specifies if conversion of non-numerical strings shall be
++     *                                converted to a default numerical value, instead of causing
++     *                                an exception to be thrown (default).
++     * @param   pDefaultFloat         floating-point default value to represent invalid numbers.
++     * @param   pDefaultInteger       integer default value to represent invalid numbers.
++     * @param   pNumericLocale        specifies whether to honor LC_NUMERIC locale (default
++     *                                true).
++     */
++    explicit ConverterParams(const bool pHasDefaultConverter = false,
++                             const long double pDefaultFloat = std::numeric_limits<long double>::signaling_NaN(),
++                             const long long pDefaultInteger = 0,
++                             const bool pNumericLocale = true)
++      : mHasDefaultConverter(pHasDefaultConverter)
++      , mDefaultFloat(pDefaultFloat)
++      , mDefaultInteger(pDefaultInteger)
++      , mNumericLocale(pNumericLocale)
++    {
++    }
++
++    /**
++     * @brief   specifies if conversion of non-numerical strings shall be converted to a default
++     *          numerical value, instead of causing an exception to be thrown (default).
++     */
++    bool mHasDefaultConverter;
++
++    /**
++     * @brief   floating-point default value to represent invalid numbers.
++     */
++    long double mDefaultFloat;
++
++    /**
++     * @brief   integer default value to represent invalid numbers.
++     */
++    long long mDefaultInteger;
++
++    /**
++     * @brief   specifies whether to honor LC_NUMERIC locale.
++     */
++    bool mNumericLocale;
++  };
++
++  /**
++   * @brief     Exception thrown when attempting to access Document data in a datatype which
++   *            is not supported by the Converter class.
++   */
++  class no_converter : public std::exception
++  {
++  public:
++    /**
++     * @brief   Provides details about the exception
++     * @returns an explanatory string
++     */
++    const char* what() const throw() override
++    {
++      return "unsupported conversion datatype";
++    }
++  };
++
++  /**
++   * @brief     Class providing conversion to/from numerical datatypes and strings. Only
++   *            intended for rapidcsv internal usage, but exposed externally to allow
++   *            specialization for custom datatype conversions.
++   */
++  template<typename T>
++  class Converter
++  {
++  public:
++    /**
++     * @brief   Constructor
++     * @param   pConverterParams      specifies how conversion of non-numerical values to
++     *                                numerical datatype shall be handled.
++     */
++    Converter(const ConverterParams& pConverterParams)
++      : mConverterParams(pConverterParams)
++    {
++    }
++
++    /**
++     * @brief   Converts numerical value to string representation.
++     * @param   pVal                  numerical value
++     * @param   pStr                  output string
++     */
++    void ToStr(const T& pVal, std::string& pStr) const
++    {
++      if (typeid(T) == typeid(int) ||
++          typeid(T) == typeid(short) ||
++          typeid(T) == typeid(unsigned short) ||
++          typeid(T) == typeid(long) ||
++          typeid(T) == typeid(long long) ||
++          typeid(T) == typeid(unsigned) ||
++          typeid(T) == typeid(unsigned long) ||
++          typeid(T) == typeid(unsigned long long) ||
++          typeid(T) == typeid(long double) ||
++          typeid(T) == typeid(char))
++      {
++        std::ostringstream out;
++        out << pVal;
++        pStr = out.str();
++      }
++      else if (typeid(T) == typeid(float))
++      {
++        std::ostringstream out;
++        out << std::setprecision(9) << pVal;
++        pStr = out.str();
++      }
++      else if (typeid(T) == typeid(double))
++      {
++        std::ostringstream out;
++        out << std::setprecision(17) << pVal;
++        pStr = out.str();
++      }
++      else if (typeid(T) == typeid(signed char))
++      {
++        std::ostringstream out;
++        out << static_cast<int>(pVal);
++        pStr = out.str();
++      }
++      else if (typeid(T) == typeid(unsigned char))
++      {
++        std::ostringstream out;
++        out << static_cast<unsigned int>(pVal);
++        pStr = out.str();
++      }
++      else
++      {
++        throw no_converter();
++      }
++    }
++
++    /**
++     * @brief   Converts string holding a numerical value to numerical datatype representation.
++     * @param   pVal                  numerical value
++     * @param   pStr                  output string
++     */
++    void ToVal(const std::string& pStr, T& pVal) const
++    {
++      try
++      {
++        if (typeid(T) == typeid(int))
++        {
++          pVal = static_cast<T>(std::stoi(pStr));
++          return;
++        }
++        else if ((typeid(T) == typeid(signed char)) || (typeid(T) == typeid(unsigned char)) ||
++                 (typeid(T) == typeid(short)) || (typeid(T) == typeid(unsigned short)))
++        {
++          const int i = std::stoi(pStr);
++          if ((i < static_cast<int>((std::numeric_limits<T>::min)())) ||
++              (i > static_cast<int>((std::numeric_limits<T>::max)())))
++          {
++            throw std::out_of_range("conversion: out of range");
++          }
++          pVal = static_cast<T>(i);
++          return;
++        }
++        else if (typeid(T) == typeid(long))
++        {
++          pVal = static_cast<T>(std::stol(pStr));
++          return;
++        }
++        else if (typeid(T) == typeid(long long))
++        {
++          pVal = static_cast<T>(std::stoll(pStr));
++          return;
++        }
++        else if ((typeid(T) == typeid(unsigned)) || (typeid(T) == typeid(unsigned long)) ||
++                 (typeid(T) == typeid(unsigned long long)))
++        {
++          const unsigned long long ull = std::stoull(pStr);
++          const T val = static_cast<T>(ull);
++
++          // std::stoull() wraps negative values around, instead of throwing
++          const size_t signPos = pStr.find_first_not_of(" \f\n\r\t\v");
++          const bool isNegative =
++            (ull != 0) && (signPos != std::string::npos) && (pStr.at(signPos) == '-');
++
++          if (isNegative || (static_cast<unsigned long long>(val) != ull))
++          {
++            throw std::out_of_range("conversion: out of range");
++          }
++          pVal = val;
++          return;
++        }
++      }
++      catch (...)
++      {
++        if (!mConverterParams.mHasDefaultConverter)
++        {
++          throw;
++        }
++        else
++        {
++          pVal = static_cast<T>(mConverterParams.mDefaultInteger);
++          return;
++        }
++      }
++
++      try
++      {
++        if (mConverterParams.mNumericLocale)
++        {
++          if (typeid(T) == typeid(float))
++          {
++            pVal = static_cast<T>(std::stof(pStr));
++            return;
++          }
++          else if (typeid(T) == typeid(double))
++          {
++            pVal = static_cast<T>(std::stod(pStr));
++            return;
++          }
++          else if (typeid(T) == typeid(long double))
++          {
++            pVal = static_cast<T>(std::stold(pStr));
++            return;
++          }
++        }
++        else
++        {
++          if ((typeid(T) == typeid(float)) ||
++              (typeid(T) == typeid(double)) ||
++              (typeid(T) == typeid(long double)))
++          {
++            std::istringstream iss(pStr);
++            iss.imbue(std::locale::classic());
++            iss >> pVal;
++            if (iss.fail() || iss.bad() || !iss.eof())
++            {
++              throw std::invalid_argument("istringstream: no conversion");
++            }
++            return;
++          }
++        }
++      }
++      catch (...)
++      {
++        if (!mConverterParams.mHasDefaultConverter)
++        {
++          throw;
++        }
++        else
++        {
++          pVal = static_cast<T>(mConverterParams.mDefaultFloat);
++          return;
++        }
++      }
++
++      if (typeid(T) == typeid(char))
++      {
++        pVal = static_cast<T>(pStr[0]);
++        return;
++      }
++      else
++      {
++        throw no_converter();
++      }
++    }
++
++  private:
++    const ConverterParams& mConverterParams;
++  };
++
++  /**
++   * @brief     Specialized implementation handling string to string conversion.
++   * @param     pVal                  string
++   * @param     pStr                  string
++   */
++  template<>
++  inline void Converter<std::string>::ToStr(const std::string& pVal, std::string& pStr) const
++  {
++    pStr = pVal;
++  }
++
++  /**
++   * @brief     Specialized implementation handling string to string conversion.
++   * @param     pVal                  string
++   * @param     pStr                  string
++   */
++  template<>
++  inline void Converter<std::string>::ToVal(const std::string& pStr, std::string& pVal) const
++  {
++    pVal = pStr;
++  }
++
++  template<typename T>
++  using ConvFunc = std::function<void (const std::string& pStr, T& pVal)>;
++
++  /**
++   * @brief     Datastructure holding parameters controlling which row and column should be
++   *            treated as labels.
++   */
++  struct LabelParams
++  {
++    /**
++     * @brief   Constructor
++     * @param   pColumnNameIdx        specifies the zero-based row index of the column labels, setting
++     *                                it to -1 prevents column lookup by label name, and gives access
++     *                                to all rows as document data. Default: 0
++     * @param   pRowNameIdx           specifies the zero-based column index of the row labels, setting
++     *                                it to -1 prevents row lookup by label name, and gives access
++     *                                to all columns as document data. Default: -1
++     */
++    explicit LabelParams(const int pColumnNameIdx = 0, const int pRowNameIdx = -1)
++      : mColumnNameIdx(pColumnNameIdx)
++      , mRowNameIdx(pRowNameIdx)
++    {
++      if (mColumnNameIdx < -1)
++      {
++        const std::string errStr = "invalid column name index " +
++          std::to_string(mColumnNameIdx) + " < -1";
++        throw std::out_of_range(errStr);
++      }
++
++      if (mRowNameIdx < -1)
++      {
++        const std::string errStr = "invalid row name index " +
++          std::to_string(mRowNameIdx) + " < -1";
++        throw std::out_of_range(errStr);
++      }
++    }
++
++    /**
++     * @brief   specifies the zero-based row index of the column labels.
++     */
++    int mColumnNameIdx;
++
++    /**
++     * @brief   specifies the zero-based column index of the row labels.
++     */
++    int mRowNameIdx;
++  };
++
++  /**
++   * @brief     Datastructure holding parameters controlling how the CSV data fields are separated.
++   */
++  struct SeparatorParams
++  {
++    /**
++     * @brief   Constructor
++     * @param   pSeparator            specifies the column separator (default ',').
++     * @param   pTrim                 specifies whether to trim leading and trailing spaces from
++     *                                cells read (default false).
++     * @param   pHasCR                specifies whether a new document (i.e. not an existing document read)
++     *                                should use CR/LF instead of only LF (default is to use standard
++     *                                behavior of underlying platforms - CR/LF for Win, and LF for others).
++     * @param   pQuotedLinebreaks     specifies whether to allow line breaks in quoted text (default false)
++     * @param   pAutoQuote            specifies whether to automatically dequote data during read, and add
++     *                                quotes during write (default true).
++     * @param   pQuoteChar            specifies the quote character (default '\"').
++     */
++    explicit SeparatorParams(const char pSeparator = ',', const bool pTrim = false,
++                             const bool pHasCR = sPlatformHasCR, const bool pQuotedLinebreaks = false,
++                             const bool pAutoQuote = true, const char pQuoteChar = '"')
++      : mSeparator(pSeparator)
++      , mTrim(pTrim)
++      , mHasCR(pHasCR)
++      , mQuotedLinebreaks(pQuotedLinebreaks)
++      , mAutoQuote(pAutoQuote)
++      , mQuoteChar(pQuoteChar)
++    {
++    }
++
++    /**
++     * @brief   specifies the column separator.
++     */
++    char mSeparator;
++
++    /**
++     * @brief   specifies whether to trim leading and trailing spaces from cells read.
++     */
++    bool mTrim;
++
++    /**
++     * @brief   specifies whether new documents should use CR/LF instead of LF.
++     */
++    bool mHasCR;
++
++    /**
++     * @brief   specifies whether to allow line breaks in quoted text.
++     */
++    bool mQuotedLinebreaks;
++
++    /**
++     * @brief   specifies whether to automatically dequote cell data.
++     */
++    bool mAutoQuote;
++
++    /**
++     * @brief   specifies the quote character.
++     */
++    char mQuoteChar;
++  };
++
++  /**
++   * @brief     Datastructure holding parameters controlling how special line formats should be
++   *            treated.
++   */
++  struct LineReaderParams
++  {
++    /**
++     * @brief   Constructor
++     * @param   pSkipCommentLines     specifies whether to skip lines prefixed with
++     *                                mCommentPrefix. Default: false
++     * @param   pCommentPrefix        specifies which prefix character to indicate a comment
++     *                                line. Default: #
++     * @param   pSkipEmptyLines       specifies whether to skip empty lines. Default: false
++     */
++    explicit LineReaderParams(const bool pSkipCommentLines = false,
++                              const char pCommentPrefix = '#',
++                              const bool pSkipEmptyLines = false)
++      : mSkipCommentLines(pSkipCommentLines)
++      , mCommentPrefix(pCommentPrefix)
++      , mSkipEmptyLines(pSkipEmptyLines)
++    {
++    }
++
++    /**
++     * @brief   specifies whether to skip lines prefixed with mCommentPrefix.
++     */
++    bool mSkipCommentLines;
++
++    /**
++     * @brief   specifies which prefix character to indicate a comment line.
++     */
++    char mCommentPrefix;
++
++    /**
++     * @brief   specifies whether to skip empty lines.
++     */
++    bool mSkipEmptyLines;
++  };
++
++  /**
++   * @brief     Class representing a CSV document.
++   */
++  class Document
++  {
++  public:
++    /**
++     * @brief   Constructor
++     * @param   pPath                 specifies the path of an existing CSV-file to populate the Document
++     *                                data with.
++     * @param   pLabelParams          specifies which row and column should be treated as labels.
++     * @param   pSeparatorParams      specifies which field and row separators should be used.
++     * @param   pConverterParams      specifies how invalid numbers (including empty strings) should be
++     *                                handled.
++     * @param   pLineReaderParams     specifies how special line formats should be treated.
++     */
++    explicit Document(const std::string& pPath = std::string(),
++                      const LabelParams& pLabelParams = LabelParams(),
++                      const SeparatorParams& pSeparatorParams = SeparatorParams(),
++                      const ConverterParams& pConverterParams = ConverterParams(),
++                      const LineReaderParams& pLineReaderParams = LineReaderParams())
++      : mPath(pPath)
++      , mLabelParams(pLabelParams)
++      , mSeparatorParams(pSeparatorParams)
++      , mConverterParams(pConverterParams)
++      , mLineReaderParams(pLineReaderParams)
++      , mData()
++      , mColumnNames()
++      , mRowNames()
++    {
++      if (!mPath.empty())
++      {
++        ReadCsv();
++      }
++    }
++
++    /**
++     * @brief   Constructor
++     * @param   pStream               specifies a binary input stream to read CSV data from.
++     * @param   pLabelParams          specifies which row and column should be treated as labels.
++     * @param   pSeparatorParams      specifies which field and row separators should be used.
++     * @param   pConverterParams      specifies how invalid numbers (including empty strings) should be
++     *                                handled.
++     * @param   pLineReaderParams     specifies how special line formats should be treated.
++     */
++    explicit Document(std::istream& pStream,
++                      const LabelParams& pLabelParams = LabelParams(),
++                      const SeparatorParams& pSeparatorParams = SeparatorParams(),
++                      const ConverterParams& pConverterParams = ConverterParams(),
++                      const LineReaderParams& pLineReaderParams = LineReaderParams())
++      : mPath()
++      , mLabelParams(pLabelParams)
++      , mSeparatorParams(pSeparatorParams)
++      , mConverterParams(pConverterParams)
++      , mLineReaderParams(pLineReaderParams)
++      , mData()
++      , mColumnNames()
++      , mRowNames()
++    {
++      ReadCsv(pStream);
++    }
++
++    /**
++     * @brief   Read Document data from file.
++     * @param   pPath                 specifies the path of an existing CSV-file to populate the Document
++     *                                data with.
++     * @param   pLabelParams          specifies which row and column should be treated as labels.
++     * @param   pSeparatorParams      specifies which field and row separators should be used.
++     * @param   pConverterParams      specifies how invalid numbers (including empty strings) should be
++     *                                handled.
++     * @param   pLineReaderParams     specifies how special line formats should be treated.
++     */
++    void Load(const std::string& pPath,
++              const LabelParams& pLabelParams = LabelParams(),
++              const SeparatorParams& pSeparatorParams = SeparatorParams(),
++              const ConverterParams& pConverterParams = ConverterParams(),
++              const LineReaderParams& pLineReaderParams = LineReaderParams())
++    {
++      mPath = pPath;
++      mLabelParams = pLabelParams;
++      mSeparatorParams = pSeparatorParams;
++      mConverterParams = pConverterParams;
++      mLineReaderParams = pLineReaderParams;
++      ReadCsv();
++    }
++
++    /**
++     * @brief   Read Document data from stream.
++     * @param   pStream               specifies a binary input stream to read CSV data from.
++     * @param   pLabelParams          specifies which row and column should be treated as labels.
++     * @param   pSeparatorParams      specifies which field and row separators should be used.
++     * @param   pConverterParams      specifies how invalid numbers (including empty strings) should be
++     *                                handled.
++     * @param   pLineReaderParams     specifies how special line formats should be treated.
++     */
++    void Load(std::istream& pStream,
++              const LabelParams& pLabelParams = LabelParams(),
++              const SeparatorParams& pSeparatorParams = SeparatorParams(),
++              const ConverterParams& pConverterParams = ConverterParams(),
++              const LineReaderParams& pLineReaderParams = LineReaderParams())
++    {
++      mPath = "";
++      mLabelParams = pLabelParams;
++      mSeparatorParams = pSeparatorParams;
++      mConverterParams = pConverterParams;
++      mLineReaderParams = pLineReaderParams;
++      ReadCsv(pStream);
++    }
++
++    /**
++     * @brief   Write Document data to file.
++     * @param   pPath                 optionally specifies the path where the CSV-file will be created
++     *                                (if not specified, the original path provided when creating or
++     *                                loading the Document data will be used).
++     */
++    void Save(const std::string& pPath = std::string())
++    {
++      if (!pPath.empty())
++      {
++        mPath = pPath;
++      }
++      WriteCsv();
++    }
++
++    /**
++     * @brief   Write Document data to stream.
++     * @param   pStream               specifies a binary output stream to write the data to.
++     */
++    void Save(std::ostream& pStream) const
++    {
++      WriteCsv(pStream);
++    }
++
++    /**
++     * @brief   Clears loaded Document data.
++     *
++     */
++    void Clear()
++    {
++      mData.clear();
++      mColumnNames.clear();
++      mRowNames.clear();
++      mIsUtf16 = false;
++      mIsLE = false;
++      mHasUtf8BOM = false;
++    }
++
++    /**
++     * @brief   Get column index by name. The result is undefined if the document contains
++     *          multiple columns sharing the same label name. Column indices exceeding
++     *          INT_MAX are not supported.
++     * @param   pColumnName           column label name.
++     * @returns zero-based column index.
++     */
++    int GetColumnIdx(const std::string& pColumnName) const
++    {
++      if (mLabelParams.mColumnNameIdx >= 0)
++      {
++        if (mColumnNames.find(pColumnName) != mColumnNames.end())
++        {
++          return static_cast<int>(mColumnNames.at(pColumnName)) - (mLabelParams.mRowNameIdx + 1);
++        }
++      }
++      return -1;
++    }
++
++    /**
++     * @brief   Get column by index.
++     * @param   pColumnIdx            zero-based column index.
++     * @returns vector of column data.
++     */
++    template<typename T>
++    std::vector<T> GetColumn(const size_t pColumnIdx) const
++    {
++      const size_t dataColumnIdx = GetDataColumnIndex(pColumnIdx);
++      std::vector<T> column;
++      Converter<T> converter(mConverterParams);
++      for (auto itRow = mData.begin(); itRow != mData.end(); ++itRow)
++      {
++        if (std::distance(mData.begin(), itRow) > mLabelParams.mColumnNameIdx)
++        {
++          if (dataColumnIdx < itRow->size())
++          {
++            T val;
++            converter.ToVal(itRow->at(dataColumnIdx), val);
++            column.push_back(val);
++          }
++          else
++          {
++            const std::string errStr = "requested column index " +
++              std::to_string(pColumnIdx) + " >= " +
++              std::to_string(itRow->size() - GetDataColumnIndex(0)) +
++              " (number of columns on row index " +
++              std::to_string(std::distance(mData.begin(), itRow) -
++                             (mLabelParams.mColumnNameIdx + 1)) + ")";
++            throw std::out_of_range(errStr);
++          }
++        }
++      }
++      return column;
++    }
++
++    /**
++     * @brief   Get column by index.
++     * @param   pColumnIdx            zero-based column index.
++     * @param   pToVal                conversion function.
++     * @returns vector of column data.
++     */
++    template<typename T>
++    std::vector<T> GetColumn(const size_t pColumnIdx, ConvFunc<T> pToVal) const
++    {
++      const size_t dataColumnIdx = GetDataColumnIndex(pColumnIdx);
++      std::vector<T> column;
++      for (auto itRow = mData.begin(); itRow != mData.end(); ++itRow)
++      {
++        if (std::distance(mData.begin(), itRow) > mLabelParams.mColumnNameIdx)
++        {
++          T val;
++          pToVal(itRow->at(dataColumnIdx), val);
++          column.push_back(val);
++        }
++      }
++      return column;
++    }
++
++    /**
++     * @brief   Get column by name.
++     * @param   pColumnName           column label name.
++     * @returns vector of column data.
++     */
++    template<typename T>
++    std::vector<T> GetColumn(const std::string& pColumnName) const
++    {
++      const int columnIdx = GetColumnIdx(pColumnName);
++      if (columnIdx < 0)
++      {
++        throw std::out_of_range("column not found: " + pColumnName);
++      }
++      return GetColumn<T>(static_cast<size_t>(columnIdx));
++    }
++
++    /**
++     * @brief   Get column by name.
++     * @param   pColumnName           column label name.
++     * @param   pToVal                conversion function.
++     * @returns vector of column data.
++     */
++    template<typename T>
++    std::vector<T> GetColumn(const std::string& pColumnName, ConvFunc<T> pToVal) const
++    {
++      const int columnIdx = GetColumnIdx(pColumnName);
++      if (columnIdx < 0)
++      {
++        throw std::out_of_range("column not found: " + pColumnName);
++      }
++      return GetColumn<T>(static_cast<size_t>(columnIdx), pToVal);
++    }
++
++    /**
++     * @brief   Set column by index.
++     * @param   pColumnIdx            zero-based column index.
++     * @param   pColumn               vector of column data.
++     */
++    template<typename T>
++    void SetColumn(const size_t pColumnIdx, const std::vector<T>& pColumn)
++    {
++      const size_t dataColumnIdx = GetDataColumnIndex(pColumnIdx);
++
++      while (GetDataRowIndex(pColumn.size()) > GetDataRowCount())
++      {
++        std::vector<std::string> row;
++        row.resize(GetDataColumnCount());
++        mData.push_back(row);
++      }
++
++      if ((dataColumnIdx + 1) > GetDataColumnCount())
++      {
++        for (auto itRow = mData.begin(); itRow != mData.end(); ++itRow)
++        {
++          if (std::distance(mData.begin(), itRow) >= mLabelParams.mColumnNameIdx)
++          {
++            itRow->resize(GetDataColumnIndex(dataColumnIdx + 1));
++          }
++        }
++      }
++
++      Converter<T> converter(mConverterParams);
++      for (auto itRow = pColumn.begin(); itRow != pColumn.end(); ++itRow)
++      {
++        std::string str;
++        converter.ToStr(*itRow, str);
++        mData.at(static_cast<size_t>(std::distance(pColumn.begin(), itRow) + mLabelParams.mColumnNameIdx + 1)).at(
++          dataColumnIdx) = str;
++      }
++    }
++
++    /**
++     * @brief   Set column by name.
++     * @param   pColumnName           column label name.
++     * @param   pColumn               vector of column data.
++     */
++    template<typename T>
++    void SetColumn(const std::string& pColumnName, const std::vector<T>& pColumn)
++    {
++      const int columnIdx = GetColumnIdx(pColumnName);
++      if (columnIdx < 0)
++      {
++        throw std::out_of_range("column not found: " + pColumnName);
++      }
++      SetColumn<T>(static_cast<size_t>(columnIdx), pColumn);
++    }
++
++    /**
++     * @brief   Remove column by index.
++     * @param   pColumnIdx            zero-based column index.
++     */
++    void RemoveColumn(const size_t pColumnIdx)
++    {
++      const size_t dataColumnIdx = GetDataColumnIndex(pColumnIdx);
++      for (auto itRow = mData.begin(); itRow != mData.end(); ++itRow)
++      {
++        if (std::distance(mData.begin(), itRow) >= mLabelParams.mColumnNameIdx)
++        {
++          if (dataColumnIdx < itRow->size())
++          {
++            itRow->erase(itRow->begin() + static_cast<std::ptrdiff_t>(dataColumnIdx));
++          }
++          else
++          {
++            const std::string errStr = "column out of range: " +
++              std::to_string(pColumnIdx) + " (on row " +
++              std::to_string(std::distance(mData.begin(), itRow)) +
++              ")";
++            throw std::out_of_range(errStr);
++          }
++        }
++      }
++
++      UpdateColumnNames();
++    }
++
++    /**
++     * @brief   Remove column by name.
++     * @param   pColumnName           column label name.
++     */
++    void RemoveColumn(const std::string& pColumnName)
++    {
++      int columnIdx = GetColumnIdx(pColumnName);
++      if (columnIdx < 0)
++      {
++        throw std::out_of_range("column not found: " + pColumnName);
++      }
++
++      RemoveColumn(static_cast<size_t>(columnIdx));
++    }
++
++    /**
++     * @brief   Insert column at specified index.
++     * @param   pColumnIdx            zero-based column index.
++     * @param   pColumn               vector of column data (optional argument).
++     * @param   pColumnName           column label name (optional argument).
++     */
++    template<typename T>
++    void InsertColumn(const size_t pColumnIdx, const std::vector<T>& pColumn = std::vector<T>(),
++                      const std::string& pColumnName = std::string())
++    {
++      const size_t dataColumnIdx = GetDataColumnIndex(pColumnIdx);
++
++      std::vector<std::string> column;
++      if (pColumn.empty())
++      {
++        column.resize(GetDataRowCount());
++      }
++      else
++      {
++        column.resize(GetDataRowIndex(pColumn.size()));
++        Converter<T> converter(mConverterParams);
++        for (auto itRow = pColumn.begin(); itRow != pColumn.end(); ++itRow)
++        {
++          std::string str;
++          converter.ToStr(*itRow, str);
++          const size_t rowIdx =
++            static_cast<size_t>(std::distance(pColumn.begin(), itRow) + (mLabelParams.mColumnNameIdx + 1));
++          column.at(rowIdx) = str;
++        }
++      }
++
++      while (column.size() > GetDataRowCount())
++      {
++        std::vector<std::string> row;
++        const size_t columnCount = std::max<size_t>(static_cast<size_t>(mLabelParams.mColumnNameIdx + 1),
++                                                    GetDataColumnCount());
++        row.resize(columnCount);
++        mData.push_back(row);
++      }
++
++      for (auto itRow = mData.begin(); itRow != mData.end(); ++itRow)
++      {
++        if (std::distance(mData.begin(), itRow) >= mLabelParams.mColumnNameIdx)
++        {
++          const size_t rowIdx = static_cast<size_t>(std::distance(mData.begin(), itRow));
++          if (dataColumnIdx <= itRow->size())
++          {
++            itRow->insert(itRow->begin() + static_cast<std::ptrdiff_t>(dataColumnIdx), column.at(rowIdx));
++          }
++          else
++          {
++            const std::string errStr = "column out of range: " +
++              std::to_string(pColumnIdx) + " (on row " +
++              std::to_string(std::distance(mData.begin(), itRow)) +
++              ")";
++            throw std::out_of_range(errStr);
++          }
++        }
++      }
++
++      if (!pColumnName.empty())
++      {
++        SetColumnName(pColumnIdx, pColumnName);
++      }
++
++      UpdateColumnNames();
++    }
++
++    /**
++     * @brief   Get number of data columns (excluding label columns).
++     * @returns column count.
++     */
++    size_t GetColumnCount() const
++    {
++      const size_t firstRow = static_cast<size_t>((mLabelParams.mColumnNameIdx >= 0) ? mLabelParams.mColumnNameIdx : 0);
++      const std::ptrdiff_t count =
++        static_cast<std::ptrdiff_t>((mData.size() > firstRow) ? mData.at(firstRow).size() : 0) -
++        (mLabelParams.mRowNameIdx + 1);
++      return (count >= 0) ? static_cast<size_t>(count) : 0;
++    }
++
++    /**
++     * @brief   Get row index by name. The result is undefined if the document contains
++     *          multiple rows sharing the same label name. Row indices exceeding INT_MAX
++     *          are not supported.
++     * @param   pRowName              row label name.
++     * @returns zero-based row index.
++     */
++    int GetRowIdx(const std::string& pRowName) const
++    {
++      if (mLabelParams.mRowNameIdx >= 0)
++      {
++        if (mRowNames.find(pRowName) != mRowNames.end())
++        {
++          return static_cast<int>(mRowNames.at(pRowName)) - (mLabelParams.mColumnNameIdx + 1);
++        }
++      }
++      return -1;
++    }
++
++    /**
++     * @brief   Get row by index.
++     * @param   pRowIdx               zero-based row index.
++     * @returns vector of row data.
++     */
++    template<typename T>
++    std::vector<T> GetRow(const size_t pRowIdx) const
++    {
++      const size_t dataRowIdx = GetDataRowIndex(pRowIdx);
++      std::vector<T> row;
++      Converter<T> converter(mConverterParams);
++      for (auto itCol = mData.at(dataRowIdx).begin(); itCol != mData.at(dataRowIdx).end(); ++itCol)
++      {
++        if (std::distance(mData.at(dataRowIdx).begin(), itCol) > mLabelParams.mRowNameIdx)
++        {
++          T val;
++          converter.ToVal(*itCol, val);
++          row.push_back(val);
++        }
++      }
++      return row;
++    }
++
++    /**
++     * @brief   Get row by index.
++     * @param   pRowIdx               zero-based row index.
++     * @param   pToVal                conversion function.
++     * @returns vector of row data.
++     */
++    template<typename T>
++    std::vector<T> GetRow(const size_t pRowIdx, ConvFunc<T> pToVal) const
++    {
++      const size_t dataRowIdx = GetDataRowIndex(pRowIdx);
++      std::vector<T> row;
++      Converter<T> converter(mConverterParams);
++      for (auto itCol = mData.at(dataRowIdx).begin(); itCol != mData.at(dataRowIdx).end(); ++itCol)
++      {
++        if (std::distance(mData.at(dataRowIdx).begin(), itCol) > mLabelParams.mRowNameIdx)
++        {
++          T val;
++          pToVal(*itCol, val);
++          row.push_back(val);
++        }
++      }
++      return row;
++    }
++
++    /**
++     * @brief   Get row by name.
++     * @param   pRowName              row label name.
++     * @returns vector of row data.
++     */
++    template<typename T>
++    std::vector<T> GetRow(const std::string& pRowName) const
++    {
++      int rowIdx = GetRowIdx(pRowName);
++      if (rowIdx < 0)
++      {
++        throw std::out_of_range("row not found: " + pRowName);
++      }
++      return GetRow<T>(static_cast<size_t>(rowIdx));
++    }
++
++    /**
++     * @brief   Get row by name.
++     * @param   pRowName              row label name.
++     * @param   pToVal                conversion function.
++     * @returns vector of row data.
++     */
++    template<typename T>
++    std::vector<T> GetRow(const std::string& pRowName, ConvFunc<T> pToVal) const
++    {
++      int rowIdx = GetRowIdx(pRowName);
++      if (rowIdx < 0)
++      {
++        throw std::out_of_range("row not found: " + pRowName);
++      }
++      return GetRow<T>(static_cast<size_t>(rowIdx), pToVal);
++    }
++
++    /**
++     * @brief   Set row by index.
++     * @param   pRowIdx               zero-based row index.
++     * @param   pRow                  vector of row data.
++     */
++    template<typename T>
++    void SetRow(const size_t pRowIdx, const std::vector<T>& pRow)
++    {
++      const size_t dataRowIdx = GetDataRowIndex(pRowIdx);
++
++      while ((dataRowIdx + 1) > GetDataRowCount())
++      {
++        std::vector<std::string> row;
++        row.resize(GetDataColumnCount());
++        mData.push_back(row);
++      }
++
++      if (pRow.size() > GetDataColumnCount())
++      {
++        for (auto itRow = mData.begin(); itRow != mData.end(); ++itRow)
++        {
++          if (std::distance(mData.begin(), itRow) >= mLabelParams.mColumnNameIdx)
++          {
++            itRow->resize(GetDataColumnIndex(pRow.size()));
++          }
++        }
++      }
++
++      Converter<T> converter(mConverterParams);
++      for (auto itCol = pRow.begin(); itCol != pRow.end(); ++itCol)
++      {
++        std::string str;
++        converter.ToStr(*itCol, str);
++        mData.at(dataRowIdx).at(static_cast<size_t>(std::distance(pRow.begin(),
++                                                                  itCol) + mLabelParams.mRowNameIdx + 1)) = str;
++      }
++    }
++
++    /**
++     * @brief   Set row by name.
++     * @param   pRowName              row label name.
++     * @param   pRow                  vector of row data.
++     */
++    template<typename T>
++    void SetRow(const std::string& pRowName, const std::vector<T>& pRow)
++    {
++      int rowIdx = GetRowIdx(pRowName);
++      if (rowIdx < 0)
++      {
++        throw std::out_of_range("row not found: " + pRowName);
++      }
++      return SetRow<T>(static_cast<size_t>(rowIdx), pRow);
++    }
++
++    /**
++     * @brief   Remove row by index.
++     * @param   pRowIdx               zero-based row index.
++     */
++    void RemoveRow(const size_t pRowIdx)
++    {
++      const size_t dataRowIdx = GetDataRowIndex(pRowIdx);
++      if (dataRowIdx < mData.size())
++      {
++        mData.erase(mData.begin() + static_cast<std::ptrdiff_t>(dataRowIdx));
++      }
++      else
++      {
++        const std::string errStr = "row out of range: " +
++          std::to_string(pRowIdx);
++        throw std::out_of_range(errStr);
++      }
++
++      UpdateRowNames();
++    }
++
++    /**
++     * @brief   Remove row by name.
++     * @param   pRowName              row label name.
++     */
++    void RemoveRow(const std::string& pRowName)
++    {
++      int rowIdx = GetRowIdx(pRowName);
++      if (rowIdx < 0)
++      {
++        throw std::out_of_range("row not found: " + pRowName);
++      }
++
++      RemoveRow(static_cast<size_t>(rowIdx));
++    }
++
++    /**
++     * @brief   Insert row at specified index.
++     * @param   pRowIdx               zero-based row index.
++     * @param   pRow                  vector of row data (optional argument).
++     * @param   pRowName              row label name (optional argument).
++     */
++    template<typename T>
++    void InsertRow(const size_t pRowIdx, const std::vector<T>& pRow = std::vector<T>(),
++                   const std::string& pRowName = std::string())
++    {
++      const size_t rowIdx = GetDataRowIndex(pRowIdx);
++
++      std::vector<std::string> row;
++      if (pRow.empty())
++      {
++        row.resize(GetDataColumnCount());
++      }
++      else
++      {
++        row.resize(GetDataColumnIndex(pRow.size()));
++        Converter<T> converter(mConverterParams);
++        for (auto itCol = pRow.begin(); itCol != pRow.end(); ++itCol)
++        {
++          std::string str;
++          converter.ToStr(*itCol, str);
++          row.at(static_cast<size_t>(std::distance(pRow.begin(), itCol) + mLabelParams.mRowNameIdx + 1)) = str;
++        }
++      }
++
++      while (rowIdx > GetDataRowCount())
++      {
++        std::vector<std::string> tempRow;
++        tempRow.resize(GetDataColumnCount());
++        mData.push_back(tempRow);
++      }
++
++      mData.insert(mData.begin() + static_cast<std::ptrdiff_t>(rowIdx), row);
++
++      if (!pRowName.empty())
++      {
++        SetRowName(pRowIdx, pRowName);
++      }
++
++      UpdateRowNames();
++    }
++
++    /**
++     * @brief   Get number of data rows (excluding label rows).
++     * @returns row count.
++     */
++    size_t GetRowCount() const
++    {
++      const std::ptrdiff_t count = static_cast<std::ptrdiff_t>(mData.size()) -
++        (mLabelParams.mColumnNameIdx + 1);
++      return (count >= 0) ? static_cast<size_t>(count) : 0;
++    }
++
++    /**
++     * @brief   Get cell by index.
++     * @param   pColumnIdx            zero-based column index.
++     * @param   pRowIdx               zero-based row index.
++     * @returns cell data.
++     */
++    template<typename T>
++    T GetCell(const size_t pColumnIdx, const size_t pRowIdx) const
++    {
++      const size_t dataColumnIdx = GetDataColumnIndex(pColumnIdx);
++      const size_t dataRowIdx = GetDataRowIndex(pRowIdx);
++
++      T val;
++      Converter<T> converter(mConverterParams);
++      converter.ToVal(mData.at(dataRowIdx).at(dataColumnIdx), val);
++      return val;
++    }
++
++    /**
++     * @brief   Get cell by index.
++     * @param   pColumnIdx            zero-based column index.
++     * @param   pRowIdx               zero-based row index.
++     * @param   pToVal                conversion function.
++     * @returns cell data.
++     */
++    template<typename T>
++    T GetCell(const size_t pColumnIdx, const size_t pRowIdx, ConvFunc<T> pToVal) const
++    {
++      const size_t dataColumnIdx = GetDataColumnIndex(pColumnIdx);
++      const size_t dataRowIdx = GetDataRowIndex(pRowIdx);
++
++      T val;
++      pToVal(mData.at(dataRowIdx).at(dataColumnIdx), val);
++      return val;
++    }
++
++    /**
++     * @brief   Get cell by name.
++     * @param   pColumnName           column label name.
++     * @param   pRowName              row label name.
++     * @returns cell data.
++     */
++    template<typename T>
++    T GetCell(const std::string& pColumnName, const std::string& pRowName) const
++    {
++      const int columnIdx = GetColumnIdx(pColumnName);
++      if (columnIdx < 0)
++      {
++        throw std::out_of_range("column not found: " + pColumnName);
++      }
++
++      const int rowIdx = GetRowIdx(pRowName);
++      if (rowIdx < 0)
++      {
++        throw std::out_of_range("row not found: " + pRowName);
++      }
++
++      return GetCell<T>(static_cast<size_t>(columnIdx), static_cast<size_t>(rowIdx));
++    }
++
++    /**
++     * @brief   Get cell by name.
++     * @param   pColumnName           column label name.
++     * @param   pRowName              row label name.
++     * @param   pToVal                conversion function.
++     * @returns cell data.
++     */
++    template<typename T>
++    T GetCell(const std::string& pColumnName, const std::string& pRowName, ConvFunc<T> pToVal) const
++    {
++      const int columnIdx = GetColumnIdx(pColumnName);
++      if (columnIdx < 0)
++      {
++        throw std::out_of_range("column not found: " + pColumnName);
++      }
++
++      const int rowIdx = GetRowIdx(pRowName);
++      if (rowIdx < 0)
++      {
++        throw std::out_of_range("row not found: " + pRowName);
++      }
++
++      return GetCell<T>(static_cast<size_t>(columnIdx), static_cast<size_t>(rowIdx), pToVal);
++    }
++
++    /**
++     * @brief   Get cell by column name and row index.
++     * @param   pColumnName           column label name.
++     * @param   pRowIdx               zero-based row index.
++     * @returns cell data.
++     */
++    template<typename T>
++    T GetCell(const std::string& pColumnName, const size_t pRowIdx) const
++    {
++      const int columnIdx = GetColumnIdx(pColumnName);
++      if (columnIdx < 0)
++      {
++        throw std::out_of_range("column not found: " + pColumnName);
++      }
++
++      return GetCell<T>(static_cast<size_t>(columnIdx), pRowIdx);
++    }
++
++    /**
++     * @brief   Get cell by column name and row index.
++     * @param   pColumnName           column label name.
++     * @param   pRowIdx               zero-based row index.
++     * @param   pToVal                conversion function.
++     * @returns cell data.
++     */
++    template<typename T>
++    T GetCell(const std::string& pColumnName, const size_t pRowIdx, ConvFunc<T> pToVal) const
++    {
++      const int columnIdx = GetColumnIdx(pColumnName);
++      if (columnIdx < 0)
++      {
++        throw std::out_of_range("column not found: " + pColumnName);
++      }
++
++      return GetCell<T>(static_cast<size_t>(columnIdx), pRowIdx, pToVal);
++    }
++
++    /**
++     * @brief   Get cell by column index and row name.
++     * @param   pColumnIdx            zero-based column index.
++     * @param   pRowName              row label name.
++     * @returns cell data.
++     */
++    template<typename T>
++    T GetCell(const size_t pColumnIdx, const std::string& pRowName) const
++    {
++      const int rowIdx = GetRowIdx(pRowName);
++      if (rowIdx < 0)
++      {
++        throw std::out_of_range("row not found: " + pRowName);
++      }
++
++      return GetCell<T>(pColumnIdx, static_cast<size_t>(rowIdx));
++    }
++
++    /**
++     * @brief   Get cell by column index and row name.
++     * @param   pColumnIdx            zero-based column index.
++     * @param   pRowName              row label name.
++     * @param   pToVal                conversion function.
++     * @returns cell data.
++     */
++    template<typename T>
++    T GetCell(const size_t pColumnIdx, const std::string& pRowName, ConvFunc<T> pToVal) const
++    {
++      const int rowIdx = GetRowIdx(pRowName);
++      if (rowIdx < 0)
++      {
++        throw std::out_of_range("row not found: " + pRowName);
++      }
++
++      return GetCell<T>(pColumnIdx, static_cast<size_t>(rowIdx), pToVal);
++    }
++
++    /**
++     * @brief   Set cell by index.
++     * @param   pRowIdx               zero-based row index.
++     * @param   pColumnIdx            zero-based column index.
++     * @param   pCell                 cell data.
++     */
++    template<typename T>
++    void SetCell(const size_t pColumnIdx, const size_t pRowIdx, const T& pCell)
++    {
++      const size_t dataColumnIdx = GetDataColumnIndex(pColumnIdx);
++      const size_t dataRowIdx = GetDataRowIndex(pRowIdx);
++
++      while ((dataRowIdx + 1) > GetDataRowCount())
++      {
++        std::vector<std::string> row;
++        row.resize(GetDataColumnCount());
++        mData.push_back(row);
++      }
++
++      if ((dataColumnIdx + 1) > GetDataColumnCount())
++      {
++        for (auto itRow = mData.begin(); itRow != mData.end(); ++itRow)
++        {
++          if (std::distance(mData.begin(), itRow) >= mLabelParams.mColumnNameIdx)
++          {
++            itRow->resize(dataColumnIdx + 1);
++          }
++        }
++      }
++
++      std::string str;
++      Converter<T> converter(mConverterParams);
++      converter.ToStr(pCell, str);
++      mData.at(dataRowIdx).at(dataColumnIdx) = str;
++    }
++
++    /**
++     * @brief   Set cell by name.
++     * @param   pColumnName           column label name.
++     * @param   pRowName              row label name.
++     * @param   pCell                 cell data.
++     */
++    template<typename T>
++    void SetCell(const std::string& pColumnName, const std::string& pRowName, const T& pCell)
++    {
++      const int columnIdx = GetColumnIdx(pColumnName);
++      if (columnIdx < 0)
++      {
++        throw std::out_of_range("column not found: " + pColumnName);
++      }
++
++      const int rowIdx = GetRowIdx(pRowName);
++      if (rowIdx < 0)
++      {
++        throw std::out_of_range("row not found: " + pRowName);
++      }
++
++      SetCell<T>(static_cast<size_t>(columnIdx), static_cast<size_t>(rowIdx), pCell);
++    }
++
++    /**
++     * @brief   Set cell by column index and row name.
++     * @param   pColumnIdx            zero-based column index.
++     * @param   pRowName              row label name.
++     * @param   pCell                 cell data.
++     */
++    template<typename T>
++    void SetCell(const size_t pColumnIdx, const std::string& pRowName, const T& pCell)
++    {
++      const int rowIdx = GetRowIdx(pRowName);
++      if (rowIdx < 0)
++      {
++        throw std::out_of_range("row not found: " + pRowName);
++      }
++
++      SetCell<T>(pColumnIdx, static_cast<size_t>(rowIdx), pCell);
++    }
++
++    /**
++     * @brief   Set cell by column name and row index.
++     * @param   pColumnName           column label name.
++     * @param   pRowIdx               zero-based row index.
++     * @param   pCell                 cell data.
++     */
++    template<typename T>
++    void SetCell(const std::string& pColumnName, const size_t pRowIdx, const T& pCell)
++    {
++      const int columnIdx = GetColumnIdx(pColumnName);
++      if (columnIdx < 0)
++      {
++        throw std::out_of_range("column not found: " + pColumnName);
++      }
++
++      SetCell<T>(static_cast<size_t>(columnIdx), pRowIdx, pCell);
++    }
++
++    /**
++     * @brief   Get column name
++     * @param   pColumnIdx            zero-based column index.
++     * @returns column name.
++     */
++    std::string GetColumnName(const size_t pColumnIdx) const
++    {
++      const size_t dataColumnIdx = GetDataColumnIndex(pColumnIdx);
++      if (mLabelParams.mColumnNameIdx < 0)
++      {
++        throw std::out_of_range("column name row index < 0: " + std::to_string(mLabelParams.mColumnNameIdx));
++      }
++
++      return mData.at(static_cast<size_t>(mLabelParams.mColumnNameIdx)).at(dataColumnIdx);
++    }
++
++    /**
++     * @brief   Set column name
++     * @param   pColumnIdx            zero-based column index.
++     * @param   pColumnName           column name.
++     */
++    void SetColumnName(size_t pColumnIdx, const std::string& pColumnName)
++    {
++      if (mLabelParams.mColumnNameIdx < 0)
++      {
++        throw std::out_of_range("column name row index < 0: " + std::to_string(mLabelParams.mColumnNameIdx));
++      }
++
++      const size_t dataColumnIdx = GetDataColumnIndex(pColumnIdx);
++
++      // remove old name from map before adding new one
++      const size_t nameRowIdx = static_cast<size_t>(mLabelParams.mColumnNameIdx);
++      if ((nameRowIdx < mData.size()) && (dataColumnIdx < mData.at(nameRowIdx).size()))
++      {
++        const std::string oldName = mData.at(nameRowIdx).at(dataColumnIdx);
++        mColumnNames.erase(oldName);
++      }
++      mColumnNames[pColumnName] = dataColumnIdx;
++
++      // increase table size if necessary:
++      const size_t rowIdx = static_cast<size_t>(mLabelParams.mColumnNameIdx);
++      if (rowIdx >= mData.size())
++      {
++        mData.resize(rowIdx + 1);
++      }
++
++      std::vector<std::string>& row = mData[rowIdx];
++      if (dataColumnIdx >= row.size())
++      {
++        row.resize(dataColumnIdx + 1);
++      }
++
++      mData.at(static_cast<size_t>(mLabelParams.mColumnNameIdx)).at(dataColumnIdx) = pColumnName;
++    }
++
++    /**
++     * @brief   Get column names
++     * @returns vector of column names.
++     */
++    std::vector<std::string> GetColumnNames() const
++    {
++      if (mLabelParams.mColumnNameIdx >= 0)
++      {
++        const std::vector<std::string>& labelRow = mData.at(static_cast<size_t>(mLabelParams.mColumnNameIdx));
++        const size_t offset = static_cast<size_t>(mLabelParams.mRowNameIdx + 1);
++        if (offset <= labelRow.size())
++        {
++          return std::vector<std::string>(labelRow.begin() + static_cast<std::ptrdiff_t>(offset), labelRow.end());
++        }
++      }
++
++      return std::vector<std::string>();
++    }
++
++    /**
++     * @brief   Get row name
++     * @param   pRowIdx               zero-based column index.
++     * @returns row name.
++     */
++    std::string GetRowName(const size_t pRowIdx) const
++    {
++      const size_t dataRowIdx = GetDataRowIndex(pRowIdx);
++      if (mLabelParams.mRowNameIdx < 0)
++      {
++        throw std::out_of_range("row name column index < 0: " + std::to_string(mLabelParams.mRowNameIdx));
++      }
++
++      return mData.at(dataRowIdx).at(static_cast<size_t>(mLabelParams.mRowNameIdx));
++    }
++
++    /**
++     * @brief   Set row name
++     * @param   pRowIdx               zero-based row index.
++     * @param   pRowName              row name.
++     */
++    void SetRowName(size_t pRowIdx, const std::string& pRowName)
++    {
++      const size_t dataRowIdx = GetDataRowIndex(pRowIdx);
++
++      // remove old name from map before adding new one
++      if ((mLabelParams.mRowNameIdx >= 0) && (dataRowIdx < mData.size()) &&
++          (static_cast<size_t>(mLabelParams.mRowNameIdx) < mData.at(dataRowIdx).size()))
++      {
++        const std::string oldName = mData.at(dataRowIdx).at(static_cast<size_t>(mLabelParams.mRowNameIdx));
++        mRowNames.erase(oldName);
++      }
++      mRowNames[pRowName] = dataRowIdx;
++      if (mLabelParams.mRowNameIdx < 0)
++      {
++        throw std::out_of_range("row name column index < 0: " + std::to_string(mLabelParams.mRowNameIdx));
++      }
++
++      // increase table size if necessary:
++      if (dataRowIdx >= mData.size())
++      {
++        mData.resize(dataRowIdx + 1);
++      }
++
++      std::vector<std::string>& row = mData[dataRowIdx];
++      if (mLabelParams.mRowNameIdx >= static_cast<std::ptrdiff_t>(row.size()))
++      {
++        row.resize(static_cast<size_t>(mLabelParams.mRowNameIdx) + 1);
++      }
++
++      mData.at(dataRowIdx).at(static_cast<size_t>(mLabelParams.mRowNameIdx)) = pRowName;
++    }
++
++    /**
++     * @brief   Get row names
++     * @returns vector of row names.
++     */
++    std::vector<std::string> GetRowNames() const
++    {
++      std::vector<std::string> rownames;
++      if (mLabelParams.mRowNameIdx >= 0)
++      {
++        for (auto itRow = mData.begin(); itRow != mData.end(); ++itRow)
++        {
++          if (std::distance(mData.begin(), itRow) > mLabelParams.mColumnNameIdx)
++          {
++            rownames.push_back(itRow->at(static_cast<size_t>(mLabelParams.mRowNameIdx)));
++          }
++        }
++      }
++      return rownames;
++    }
++
++  private:
++    void ReadCsv()
++    {
++      std::ifstream stream;
++      stream.exceptions(std::ifstream::failbit | std::ifstream::badbit);
++      stream.open(mPath, std::ios::binary);
++      ReadCsv(stream);
++    }
++
++    void ReadCsv(std::istream& pStream)
++    {
++      Clear();
++      pStream.seekg(0, std::ios::end);
++      std::streamsize length = pStream.tellg();
++      pStream.seekg(0, std::ios::beg);
++
++      std::vector<char> bom2b(2, '\0');
++      if (length >= 2)
++      {
++        pStream.read(bom2b.data(), 2);
++        pStream.seekg(0, std::ios::beg);
++      }
++
++      static const std::vector<char> bomU16le = { '\xff', '\xfe' };
++      static const std::vector<char> bomU16be = { '\xfe', '\xff' };
++      if ((bom2b == bomU16le) || (bom2b == bomU16be))
++      {
++        mIsUtf16 = true;
++        mIsLE = (bom2b == bomU16le);
++
++        std::vector<char> buffer(static_cast<size_t>(length));
++        pStream.read(buffer.data(), length);
++
++        // skip byte order mark
++        const std::string utf8 = Utf16ToUtf8(buffer.data() + 2, static_cast<size_t>(length) - 2,
++                                             mIsLE);
++        std::stringstream ss(utf8);
++        ParseCsv(ss, static_cast<std::streamsize>(utf8.size()));
++      }
++      else
++      {
++        // check for UTF-8 Byte order mark and skip it when found
++        if (length >= 3)
++        {
++          std::vector<char> bom3b(3, '\0');
++          pStream.read(bom3b.data(), 3);
++
++          if (bom3b != s_Utf8BOM)
++          {
++            // file does not start with a UTF-8 Byte order mark
++            pStream.seekg(0, std::ios::beg);
++          }
++          else
++          {
++            // file did start with a UTF-8 Byte order mark, simply skip it
++            length -= 3;
++            mHasUtf8BOM = true;
++          }
++        }
++
++        ParseCsv(pStream, length);
++      }
++    }
++
++    static inline void CheckMaxCount(const size_t pCount)
++    {
++#ifdef RAPIDCSV_MAX_COUNT
++      static_assert(RAPIDCSV_MAX_COUNT > 0, "RAPIDCSV_MAX_COUNT must be a positive value");
++      static const size_t s_MaxCount = static_cast<size_t>(RAPIDCSV_MAX_COUNT);
++      if (pCount > s_MaxCount)
++      {
++        const std::string errStr = "max count exceeded: " + std::to_string(s_MaxCount);
++        throw std::out_of_range(errStr);
++      }
++#else
++      (void)pCount;
++#endif
++    }
++
++    void ParseCsv(std::istream& pStream, std::streamsize p_FileLength)
++    {
++      const std::streamsize bufLength = 64 * 1024;
++      std::vector<char> buffer(bufLength);
++      std::vector<std::string> row;
++      std::string cell;
++      bool quoted = false;
++      int cr = 0;
++      int lf = 0;
++
++      while (p_FileLength > 0)
++      {
++        const std::streamsize toReadLength = std::min<std::streamsize>(p_FileLength, bufLength);
++        pStream.read(buffer.data(), toReadLength);
++
++        // With user-specified istream opened in non-binary mode on windows, we may have a
++        // data length mismatch, so ensure we don't parse outside actual data length read.
++        const std::streamsize readLength = pStream.gcount();
++        if (readLength <= 0)
++        {
++          break;
++        }
++
++        for (size_t i = 0; i < static_cast<size_t>(readLength); ++i)
++        {
++          if (buffer[i] == mSeparatorParams.mQuoteChar)
++          {
++            if (cell.empty() || (cell[0] == mSeparatorParams.mQuoteChar))
++            {
++              quoted = !quoted;
++            }
++            else if (mSeparatorParams.mTrim)
++            {
++              // allow whitespace before first mQuoteChar
++              const auto firstQuote = std::find(cell.begin(), cell.end(), mSeparatorParams.mQuoteChar);
++              if (std::all_of(cell.begin(), firstQuote, [](unsigned char ch) { return isspace(ch); }))
++              {
++                quoted = !quoted;
++              }
++            }
++            cell += buffer[i];
++          }
++          else if (buffer[i] == mSeparatorParams.mSeparator)
++          {
++            if (!quoted)
++            {
++              CheckMaxCount(row.size() + 1);
++              row.push_back(Unquote(Trim(cell)));
++              cell.clear();
++            }
++            else
++            {
++              cell += buffer[i];
++            }
++          }
++          else if (buffer[i] == '\r')
++          {
++            if (mSeparatorParams.mQuotedLinebreaks && quoted)
++            {
++              cell += buffer[i];
++            }
++            else
++            {
++              ++cr;
++            }
++          }
++          else if (buffer[i] == '\n')
++          {
++            if (mSeparatorParams.mQuotedLinebreaks && quoted)
++            {
++              cell += buffer[i];
++            }
++            else
++            {
++              ++lf;
++              if (mLineReaderParams.mSkipEmptyLines && row.empty() && cell.empty())
++              {
++                // skip empty line
++              }
++              else
++              {
++                CheckMaxCount(row.size() + 1);
++                row.push_back(Unquote(Trim(cell)));
++
++                if (mLineReaderParams.mSkipCommentLines && !row.at(0).empty() &&
++                    (row.at(0)[0] == mLineReaderParams.mCommentPrefix))
++                {
++                  // skip comment line
++                }
++                else
++                {
++                  CheckMaxCount(mData.size() + 1);
++                  mData.push_back(row);
++                }
++
++                cell.clear();
++                row.clear();
++                quoted = false;
++              }
++            }
++          }
++          else
++          {
++            cell += buffer[i];
++          }
++        }
++        p_FileLength -= readLength;
++      }
++
++      // Handle last row / cell without linebreak
++      if (row.empty() && cell.empty())
++      {
++        // skip empty trailing line
++      }
++      else
++      {
++        CheckMaxCount(row.size() + 1);
++        row.push_back(Unquote(Trim(cell)));
++
++        if (mLineReaderParams.mSkipCommentLines && !row.at(0).empty() &&
++            (row.at(0)[0] == mLineReaderParams.mCommentPrefix))
++        {
++          // skip comment line
++        }
++        else
++        {
++          CheckMaxCount(mData.size() + 1);
++          mData.push_back(row);
++        }
++
++        cell.clear();
++        row.clear();
++        quoted = false;
++      }
++
++      // Assume CR/LF if at least half the linebreaks have CR
++      mSeparatorParams.mHasCR = (cr > (lf / 2));
++
++      // Set up column labels
++      UpdateColumnNames();
++
++      // Set up row labels
++      UpdateRowNames();
++    }
++
++    void WriteCsv() const
++    {
++      if (mIsUtf16)
++      {
++        std::stringstream ss;
++        WriteCsv(ss);
++        const std::string utf16 = Utf8ToUtf16(ss.str(), mIsLE);
++
++        std::ofstream stream;
++        stream.exceptions(std::ofstream::failbit | std::ofstream::badbit);
++        stream.open(mPath, std::ios::binary | std::ios::trunc);
++        stream.write(utf16.data(), static_cast<std::streamsize>(utf16.size()));
++      }
++      else
++      {
++        std::ofstream stream;
++        stream.exceptions(std::ofstream::failbit | std::ofstream::badbit);
++        stream.open(mPath, std::ios::binary | std::ios::trunc);
++        if (mHasUtf8BOM)
++        {
++          stream.write(s_Utf8BOM.data(), 3);
++        }
++
++        WriteCsv(stream);
++      }
++    }
++
++    void WriteCsv(std::ostream& pStream) const
++    {
++      for (auto itr = mData.begin(); itr != mData.end(); ++itr)
++      {
++        for (auto itc = itr->begin(); itc != itr->end(); ++itc)
++        {
++          if (mSeparatorParams.mAutoQuote &&
++              ((itc->find(mSeparatorParams.mSeparator) != std::string::npos) ||
++               (itc->find(mSeparatorParams.mQuoteChar) != std::string::npos) ||
++               (itc->find(' ') != std::string::npos) ||
++               (itc->find('\n') != std::string::npos) ||
++               (itc->find('\r') != std::string::npos)))
++          {
++            // escape quotes in string
++            std::string str = *itc;
++            const std::string quoteCharStr = std::string(1, mSeparatorParams.mQuoteChar);
++            ReplaceString(str, quoteCharStr, quoteCharStr + quoteCharStr);
++
++            pStream << quoteCharStr << str << quoteCharStr;
++          }
++          else
++          {
++            pStream << *itc;
++          }
++
++          if (std::distance(itc, itr->end()) > 1)
++          {
++            pStream << mSeparatorParams.mSeparator;
++          }
++        }
++        pStream << (mSeparatorParams.mHasCR ? "\r\n" : "\n");
++      }
++    }
++
++    size_t GetDataRowCount() const
++    {
++      return mData.size();
++    }
++
++    size_t GetDataColumnCount() const
++    {
++      const size_t firstDataRow =
++        static_cast<size_t>((mLabelParams.mColumnNameIdx >= 0) ? mLabelParams.mColumnNameIdx : 0);
++      return (mData.size() > firstDataRow) ? mData.at(firstDataRow).size() : 0;
++    }
++
++    inline size_t GetDataRowIndex(const size_t pRowIdx) const
++    {
++      const size_t firstDataRow =
++        static_cast<size_t>((mLabelParams.mColumnNameIdx + 1 >= 0) ? mLabelParams.mColumnNameIdx + 1 : 0);
++      return pRowIdx + firstDataRow;
++    }
++
++    inline size_t GetDataColumnIndex(const size_t pColumnIdx) const
++    {
++      const size_t firstDataColumn =
++        static_cast<size_t>((mLabelParams.mRowNameIdx + 1 >= 0) ? mLabelParams.mRowNameIdx + 1 : 0);
++      return pColumnIdx + firstDataColumn;
++    }
++
++    std::string Trim(const std::string& pStr) const
++    {
++      if (mSeparatorParams.mTrim)
++      {
++        std::string str = pStr;
++
++        // ltrim
++        str.erase(str.begin(), std::find_if(str.begin(), str.end(), [](unsigned char ch) { return !isspace(ch); }));
++
++        // rtrim
++        str.erase(std::find_if(str.rbegin(), str.rend(), [](unsigned char ch) {
++          return !isspace(ch);
++        }).base(), str.end());
++
++        return str;
++      }
++      else
++      {
++        return pStr;
++      }
++    }
++
++    std::string Unquote(const std::string& pStr) const
++    {
++      if (mSeparatorParams.mAutoQuote && (pStr.size() >= 2) &&
++          (pStr.front() == mSeparatorParams.mQuoteChar) &&
++          (pStr.back() == mSeparatorParams.mQuoteChar))
++      {
++        // remove start/end quotes
++        std::string str = pStr.substr(1, pStr.size() - 2);
++
++        // unescape quotes in string
++        const std::string quoteCharStr = std::string(1, mSeparatorParams.mQuoteChar);
++        ReplaceString(str, quoteCharStr + quoteCharStr, quoteCharStr);
++
++        return str;
++      }
++      else
++      {
++        return pStr;
++      }
++    }
++
++    void UpdateColumnNames()
++    {
++      mColumnNames.clear();
++      if ((mLabelParams.mColumnNameIdx >= 0) &&
++          (static_cast<std::ptrdiff_t>(mData.size()) > mLabelParams.mColumnNameIdx))
++      {
++        size_t i = 0;
++        for (auto& columnName : mData[static_cast<size_t>(mLabelParams.mColumnNameIdx)])
++        {
++          mColumnNames[columnName] = i++;
++        }
++      }
++    }
++
++    void UpdateRowNames()
++    {
++      mRowNames.clear();
++      if ((mLabelParams.mRowNameIdx >= 0) &&
++          (static_cast<std::ptrdiff_t>(mData.size()) >
++           (mLabelParams.mColumnNameIdx + 1)))
++      {
++        size_t i = 0;
++        for (auto& dataRow : mData)
++        {
++          // rows too short to hold a row label are left unnamed, but must still be counted
++          if (static_cast<std::ptrdiff_t>(dataRow.size()) > mLabelParams.mRowNameIdx)
++          {
++            mRowNames[dataRow[static_cast<size_t>(mLabelParams.mRowNameIdx)]] = i;
++          }
++          ++i;
++        }
++      }
++    }
++
++    // Unicode code point used in place of malformed input.
++    static const uint32_t s_ReplacementChar = 0x0000fffd;
++
++    // Reads the UTF-16 code unit at byte offset pIdx, which must be a valid offset
++    // of a complete code unit.
++    static uint32_t GetUtf16Unit(const char* pData, size_t pIdx, bool pIsLE)
++    {
++      const uint32_t byte0 = static_cast<unsigned char>(pData[pIdx]);
++      const uint32_t byte1 = static_cast<unsigned char>(pData[pIdx + 1]);
++      return pIsLE ? ((byte1 << 8) | byte0) : ((byte0 << 8) | byte1);
++    }
++
++    static void AppendUtf16Unit(uint32_t pUnit, bool pIsLE, std::string& pUtf16)
++    {
++      const char lowByte = static_cast<char>(pUnit & 0xff);
++      const char highByte = static_cast<char>((pUnit >> 8) & 0xff);
++      pUtf16 += pIsLE ? lowByte : highByte;
++      pUtf16 += pIsLE ? highByte : lowByte;
++    }
++
++    static void AppendUtf16(uint32_t pCodePoint, bool pIsLE, std::string& pUtf16)
++    {
++      if (pCodePoint >= 0x10000)
++      {
++        // encode as surrogate pair
++        const uint32_t offset = pCodePoint - 0x10000;
++        AppendUtf16Unit(0xd800 + (offset >> 10), pIsLE, pUtf16);
++        AppendUtf16Unit(0xdc00 + (offset & 0x3ff), pIsLE, pUtf16);
++      }
++      else
++      {
++        AppendUtf16Unit(pCodePoint, pIsLE, pUtf16);
++      }
++    }
++
++    static void AppendUtf8(uint32_t pCodePoint, std::string& pUtf8)
++    {
++      if (pCodePoint < 0x80)
++      {
++        pUtf8 += static_cast<char>(pCodePoint);
++      }
++      else if (pCodePoint < 0x800)
++      {
++        pUtf8 += static_cast<char>(0xc0 | (pCodePoint >> 6));
++        pUtf8 += static_cast<char>(0x80 | (pCodePoint & 0x3f));
++      }
++      else if (pCodePoint < 0x10000)
++      {
++        pUtf8 += static_cast<char>(0xe0 | (pCodePoint >> 12));
++        pUtf8 += static_cast<char>(0x80 | ((pCodePoint >> 6) & 0x3f));
++        pUtf8 += static_cast<char>(0x80 | (pCodePoint & 0x3f));
++      }
++      else
++      {
++        pUtf8 += static_cast<char>(0xf0 | (pCodePoint >> 18));
++        pUtf8 += static_cast<char>(0x80 | ((pCodePoint >> 12) & 0x3f));
++        pUtf8 += static_cast<char>(0x80 | ((pCodePoint >> 6) & 0x3f));
++        pUtf8 += static_cast<char>(0x80 | (pCodePoint & 0x3f));
++      }
++    }
++
++    // Converts UTF-16 encoded data (without byte order mark) to UTF-8. Surrogate pairs
++    // are combined into a single code point. Unpaired surrogates and a trailing odd byte
++    // are replaced with U+FFFD.
++    static std::string Utf16ToUtf8(const char* pData, size_t pSize, bool pIsLE)
++    {
++      std::string utf8;
++      utf8.reserve(pSize);
++
++      size_t idx = 0;
++      while ((idx + 1) < pSize)
++      {
++        uint32_t codePoint = GetUtf16Unit(pData, idx, pIsLE);
++        idx += 2;
++
++        if ((codePoint >= 0xd800) && (codePoint <= 0xdbff) && ((idx + 1) < pSize))
++        {
++          // high surrogate - combine with low surrogate, when present
++          const uint32_t lowSurrogate = GetUtf16Unit(pData, idx, pIsLE);
++          if ((lowSurrogate >= 0xdc00) && (lowSurrogate <= 0xdfff))
++          {
++            codePoint = 0x10000 + ((codePoint - 0xd800) << 10) + (lowSurrogate - 0xdc00);
++            idx += 2;
++          }
++        }
++
++        if ((codePoint >= 0xd800) && (codePoint <= 0xdfff))
++        {
++          // unpaired surrogate
++          codePoint = s_ReplacementChar;
++        }
++
++        AppendUtf8(codePoint, utf8);
++      }
++
++      if (idx < pSize)
++      {
++        // trailing odd byte
++        AppendUtf8(s_ReplacementChar, utf8);
++      }
++
++      return utf8;
++    }
++
++    // Converts UTF-8 encoded data to UTF-16, prefixed with a byte order mark. Code points
++    // outside the basic multilingual plane are encoded as surrogate pairs. Malformed input
++    // is replaced with U+FFFD.
++    static std::string Utf8ToUtf16(const std::string& pUtf8, bool pIsLE)
++    {
++      std::string utf16;
++      utf16.reserve((pUtf8.size() + 1) * 2);
++
++      AppendUtf16(0x0000feff, pIsLE, utf16);
++
++      size_t idx = 0;
++      while (idx < pUtf8.size())
++      {
++        const uint32_t leadByte = static_cast<unsigned char>(pUtf8[idx]);
++        uint32_t codePoint = 0;
++        size_t seqLen = 0;
++
++        if (leadByte < 0x80)
++        {
++          codePoint = leadByte;
++          seqLen = 1;
++        }
++        else if ((leadByte & 0xe0) == 0xc0)
++        {
++          codePoint = leadByte & 0x1f;
++          seqLen = 2;
++        }
++        else if ((leadByte & 0xf0) == 0xe0)
++        {
++          codePoint = leadByte & 0x0f;
++          seqLen = 3;
++        }
++        else if ((leadByte & 0xf8) == 0xf0)
++        {
++          codePoint = leadByte & 0x07;
++          seqLen = 4;
++        }
++        else
++        {
++          // invalid lead byte
++          codePoint = s_ReplacementChar;
++          seqLen = 1;
++        }
++
++        if ((seqLen > 1) && ((idx + seqLen) <= pUtf8.size()))
++        {
++          for (size_t byteIdx = 1; byteIdx < seqLen; ++byteIdx)
++          {
++            const uint32_t contByte = static_cast<unsigned char>(pUtf8[idx + byteIdx]);
++            if ((contByte & 0xc0) != 0x80)
++            {
++              // invalid continuation byte
++              codePoint = s_ReplacementChar;
++              seqLen = 1;
++              break;
++            }
++
++            codePoint = (codePoint << 6) | (contByte & 0x3f);
++          }
++        }
++        else if (seqLen > 1)
++        {
++          // truncated sequence
++          codePoint = s_ReplacementChar;
++          seqLen = 1;
++        }
++
++        // reject out of range code points, surrogates and overlong sequences
++        static const uint32_t minCodePoint[5] = { 0, 0, 0x80, 0x800, 0x10000 };
++        if ((codePoint > 0x0010ffff) ||
++            ((codePoint >= 0xd800) && (codePoint <= 0xdfff)) ||
++            (codePoint < minCodePoint[seqLen]))
++        {
++          codePoint = s_ReplacementChar;
++        }
++
++        AppendUtf16(codePoint, pIsLE, utf16);
++        idx += seqLen;
++      }
++
++      return utf16;
++    }
++
++    static void ReplaceString(std::string& pStr, const std::string& pSearch, const std::string& pReplace)
++    {
++      size_t pos = 0;
++
++      while ((pos = pStr.find(pSearch, pos)) != std::string::npos)
++      {
++        pStr.replace(pos, pSearch.size(), pReplace);
++        pos += pReplace.size();
++      }
++    }
++
++  private:
++    std::string mPath;
++    LabelParams mLabelParams;
++    SeparatorParams mSeparatorParams;
++    ConverterParams mConverterParams;
++    LineReaderParams mLineReaderParams;
++    std::vector<std::vector<std::string>> mData;
++    std::map<std::string, size_t> mColumnNames;
++    std::map<std::string, size_t> mRowNames;
++    bool mIsUtf16 = false;
++    bool mIsLE = false;
++    bool mHasUtf8BOM = false;
++  };
++}
+diff --git a/tools/package_smoke/main.cc b/tools/package_smoke/main.cc
+index bbb03ef..1cb0c33 100644
+--- a/tools/package_smoke/main.cc
++++ b/tools/package_smoke/main.cc
+@@ -1,9 +1,21 @@
+ #include <metric_flow_x/blood_flow_system.h>
+ 
++#include <cmath>
++#include <fstream>
++
+ int
+ main(int argc, char **argv)
+ {
+   dealii::Utilities::MPI::MPI_InitFinalize mpi(argc, argv, 1);
+   MetricFlowX::BloodFlowSystem<1, 3>       flow(MPI_COMM_WORLD);
+-  return flow.mpi_communicator() == MPI_COMM_WORLD ? 0 : 1;
++  {
++    std::ofstream file("package_inflow.csv");
++    file << "flow_m3_s,time_s\n0,0\n2e-8,1\n";
++  }
++  MetricFlowX::InflowSeries inflow;
++  inflow.read("package_inflow.csv");
++  return flow.mpi_communicator() == MPI_COMM_WORLD &&
++             std::abs(inflow.value(0.5) - 1e-8) < 1e-20 ?
++           0 :
++           1;
+ }

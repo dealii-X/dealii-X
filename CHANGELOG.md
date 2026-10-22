@@ -270,3 +270,42 @@ by the presence of a recipe.
 - Verified the isolated PR checkout's 20 Python tests, Linux amd64 contracts image,
   documentation build and staged diff checks; no external assets or unrelated
   local documents are included. Original root index checksum remains unchanged.
+
+## 2026-10-22
+
+### 15. Synchronize MetricFlowX merged PRs and central tracker
+
+- Inspected upstream merged PRs #8, #16, #17, #18, #20, #21, #22 and #23, their
+  actual targets and source ancestry. PRs #22/#23 merge into stack branches;
+  current main is `2afa9060f7657363f19a6983dc63dc217a071200`, while the feature
+  stack tip is `a808b423bd5e4599d472855a4ff887336de27579`. Neither contains the other.
+- Advanced PR #39's MetricFlowX gitlink/source baseline to current main. Retained
+  main's corrected ADAN56 areas, SI asset names/provenance, RCR zero-capacitance
+  fix, PETSc backend/install changes and SI component tolerances/sonic diagnostics.
+- Replaced the old ad-hoc header-only patch with a reproducible replay of the
+  reviewed #22/#23 stack on main. Recorded source/patch provenance and retained
+  upstream rapidcsv licensing and native regressions. Resolved merge overlaps
+  by retaining both runtime checks and output features, plus diagnostic checks
+  with the single VTK reader. Verified clean-main patch replay byte-for-byte.
+  This temporary patch remains necessary until upstream main consolidates the stack.
+- Adapted both CLI demos to explicitly enable upstream's optional terminal CSV
+  export, and added a regression for the ADAN56 opt-in. Removed the obsolete
+  header-only parser probe; upstream now supplies a compiled parser regression.
+- Native ARM64 Release build succeeds. Seven focused native CTests pass. The
+  upstream analytic/CSV integration comparison now passes at one and two MPI ranks,
+  with nonzero inlet and matching pressure/flow histories. Two ADAN56-area and
+  two dataset-path tests confirm main's corrected assets/naming are preserved.
+- Re-ran the CLI native transfer demo and corrected-geometry MOX/ADAN56 short
+  smoke: all 31 terminal bundles export, and the inlet error remains below 1e-12
+  m3/s. Two recovered IDA step-limit reports remain. Full 8-second, convergence,
+  conservation and physiological checks are still open; native compiler reports
+  existing unused-variable warnings rather than a warning-free build.
+- Closed central feature/MPI issues #17/#18 with evidence; updated #16, #33 and
+  #34. Opened central #40 specifically for upstream stack consolidation and patch
+  retirement, without creating or modifying issues in project repositories.
+  Synchronized machine-readable validation, tracker, workflow docs and PR summary.
+- Preserved original dirty/staged application checkouts; all edits and native
+  probes use isolated integration directories.
+- Revalidated the final integration with 21 Python tests, the Linux amd64
+  contracts image and `./scripts/build_doc.sh`; all pass. The original local
+  application work and unrelated generated documentation page remain preserved.

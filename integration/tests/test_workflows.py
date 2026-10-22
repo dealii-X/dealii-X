@@ -11,6 +11,7 @@ from unittest.mock import patch
 from dealiix.contracts import Series, copy_series, import_csv, relative_file, write_inflow
 from dealiix.pipeline import run_pipeline, validate
 from dealiix.stage import execute
+from dealiix.adan56 import prepare as prepare_adan56
 
 
 class Workflows(unittest.TestCase):
@@ -37,6 +38,31 @@ class Workflows(unittest.TestCase):
         self.assertAlmostEqual(series.at(.25, "Q"), 1e-6)
         self.assertAlmostEqual(series.at(.5, "P"), 13332.2387415)
         self.assertEqual(series.at(1, "Q"), 0)
+
+    def test_adan56_enables_optional_upstream_terminal_export(self):
+        source = self.root / "solver"
+        tutorial = source / "tutorials/04_adan56"
+        tutorial.mkdir(parents=True)
+        (tutorial / "network.vtk").write_text("synthetic mesh fixture")
+        (tutorial / "parameters.prm.in").write_text(
+            "subsection MetricFlowSystem<1, 3>\n"
+            "set Final time = 10\nset Number of global refinement = 5\n"
+            "set Output directory = output\nset Absolute error tolerance = 1e-6\n"
+            "set Relative error tolerance = 1e-5\n"
+            "set Outlet boundary condition type = RCR\nend\n"
+            "subsection Functions\nset Inflow function = old-waveform\nend\n")
+        manifest = self.bundle(anatomy="ascending-aorta")
+        case = self.root / "adan56"
+        with patch("dealiix.adan56.git", return_value="test-source-sha"):
+            prepare_adan56(manifest, source, case, final_time=.5, refinements=0)
+        parameters = (case / "case.prm").read_text()
+        self.assertIn("set Write terminal CSV files = true", parameters)
+        self.assertIn("set Inflow CSV file = inflow.csv", parameters)
+        self.assertIn("set Inflow CSV period = 0", parameters)
+        self.assertIn("set Outlet boundary condition type = RCR", parameters)
+        self.assertNotIn("old-waveform", parameters)
+        with (case / "inflow.csv").open() as stream:
+            self.assertEqual(len(list(csv.DictReader(stream))), 3)
 
     def test_extrapolation_rejected(self):
         series = Series(self.bundle())

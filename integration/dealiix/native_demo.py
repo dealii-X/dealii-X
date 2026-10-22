@@ -22,7 +22,7 @@ def main():
     replacements = {"set Final time                        = 1.1": "set Final time = 0.01",
                     "set Number of global refinement  = 4": "set Number of global refinement = 1",
                     "set Time interval between each output = 0.005": "set Time interval between each output = 0.002",
-                    "set Output filename              = solution": "set Output filename = solution\n  set Inflow CSV file = inflow.csv\n  set Output directory = output",
+                    "set Output filename              = solution": "set Output filename = solution\n  set Write terminal CSV files = true\n  set Inflow CSV file = inflow.csv\n  set Output directory = output",
                     "set Numerical flux type          = HLL": "set Numerical flux type = HLL_HDG",
                     "set Absolute error tolerance = 1e-06": "set Absolute error tolerance = 1e-12",
                     "set Relative error tolerance = 1e-05": "set Relative error tolerance = 1e-8"}

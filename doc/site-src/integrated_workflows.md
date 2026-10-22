@@ -25,17 +25,19 @@ Docker build targets, Compose services and an Apptainer/Slurm template.
 
 Verified locally:
 
-- 20 Python contract, workflow and release-asset tests;
+- 21 Python contract, workflow and release-asset tests;
 - installed Coral core and plugin registries;
 - frontend/Electron type checks, 189 platform tests and the production build;
-- native MetricFlowX compilation and a serial tabulated-inflow case;
+- native MetricFlowX Release compilation, seven focused CTests and actual
+  analytic/CSV inlet and terminal comparisons at one and two MPI ranks;
 - current ImmersX library and Poisson application compilation;
 - Polydeal compilation with the retained include patch and an existing test.
 - external MOX CSV import and a serial ADAN56 smoke run with all 31 terminal exports.
 
 ExaBrain and lifeˣ require source compatibility work. The alveolar ExaDG branch
 fails its ARM64 SIMD build; Linux amd64 is not inferred from that result.
-MetricFlowX's multi-rank quantitative inlet comparison remains an open gate.
+The previously reproduced small-case MetricFlowX MPI inlet defect is resolved.
+Full ADAN56 multi-rank, conservation and physiological validation remain open.
 MOX histories are now available as external assets. Organ cases, the alveolar
 mesh, GPU hardware and a target cluster remain external prerequisites.
 A synthetic input or a successful build is not validation
@@ -66,6 +68,25 @@ as a compatible set; do not update each nested branch blindly.
 Retained patches are applied by the build driver to exact snapshots. The patch
 checksum and full command list are written to `build-record.json`. A `BUILT`
 record explicitly leaves numerical validation `not-run`.
+
+### MetricFlowX upstream status (2026-10-22)
+
+The pin is main `2afa9060f7657363f19a6983dc63dc217a071200`, including the
+DebugRelease/install, PETSc backend, ADAN56 area, zero-capacitance RCR, SI dataset
+and component-tolerance/sonic-diagnostic updates in PRs #8 and #16–#21.
+Upstream [PR #23](https://github.com/luca-heltai/metric-flow-x/pull/23) completes
+the CSV/terminal feature port and fixes the small MPI inlet solve.
+However, #22 and #23 were merged into stack branches rather than main. The
+feature tip alone does not contain main's corrected ADAN56 geometry or SI assets.
+
+The retained `metric-flow-x.patch` therefore replays the official #22/#23 stack
+onto pinned main, preserving both sets of changes. It replaces the initial
+ad-hoc/header-only implementation and includes the upstream parser library,
+licenses and regression tests. The recipe applies and records the patch as usual;
+see `integration/patches/metric-flow-x.md` for the exact source provenance.
+[Issue #40](https://github.com/dealii-X/dealii-X/issues/40) tracks consolidation
+into main and eventual patch deletion. Feature port #17 and MPI defect #18 are
+complete; full network and scientific gates remain #33/#32.
 
 ## Time-series contract
 
@@ -117,8 +138,9 @@ pressure for comparison. No pressure/flow pair is imposed indiscriminately.
 
 ADAN56 is the selected systemic network: 56 anatomical arteries represented by
 77 computational segments, inlet boundary 0 and terminal boundaries 1–31.
-The tracked tutorial's mesh, vessel properties and terminal RCR parameters are
-retained. The generated case replaces its Fourier inflow with the measured
+The tracked tutorial's corrected mesh (including vessel 59/60 reference areas),
+vessel properties and terminal RCR parameters are retained. The generated case
+explicitly enables upstream's optional terminal export and replaces the Fourier inflow with the measured
 aortic-valve waveform. The small synthetic circulation demonstrator below remains
 a software regression fixture.
 
@@ -169,7 +191,7 @@ including mesh/template/input/binary checksums, IDA diagnostics and a quantitati
 inlet-flow check. Terminal identifiers are preserved; mappings to organ boundaries
 are still required before connecting physiological organ cases.
 
-The local 0–0.002 s smoke run reached the final time and matched the prescribed
+The updated 2026-10-22 local 0–0.002 s smoke run reached the final time and matched the prescribed
 inlet to `6.21e-25 m3/s`. IDA reported two recovered internal step-limit events.
 This establishes data placement and export, not an eight-second numerical
 validation, conservation/convergence study, or agreement with the paper.
@@ -231,8 +253,10 @@ Use a fresh output directory for each run. The synthetic chain executes the real
 boundary data; **it does not execute an organ model**. The cardiac pressure column
 is not prescribed at the inlet.
 
-The native patch adds `Inflow CSV file` (`time_s,flow_m3_s`) and optional
+The replayed upstream implementation provides `Inflow CSV file` (`time_s,flow_m3_s`) and optional
 `Inflow CSV period`. Empty CSV configuration preserves the analytical inlet.
+Both adapters set `Write terminal CSV files = true`: terminal histories are
+optional in the upstream implementation and must be enabled explicitly.
 `terminal_<boundary-id>.csv` exports SI pressure and outward flow from the actual
 boundary traces, with boundary and vessel IDs. IDs must be globally unique.
 Mid-vessel diagnostic CSVs retain their original format and units.

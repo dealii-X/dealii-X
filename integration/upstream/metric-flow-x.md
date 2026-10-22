@@ -1,4 +1,14 @@
-## Problem
+## Status on 2026-10-22
+
+The following is the original request and historical reproduction. The feature
+port and small MPI defect are now resolved in upstream PR #23; central issues
+#17/#18 are closed. PRs #22/#23 were merged into stack branches, not main.
+The global PR preserves current main plus a recorded replay of that reviewed
+stack. Consolidation/patch retirement is central issue #40. Full ADAN56/physical
+validation remains #33/#32; original historical measurements do not establish
+validation of the subsequently corrected ADAN56 geometry.
+
+## Original problem
 
 The deal.II-X one-way workflow must drive the 1D circulation with a measured or
 simulated aortic flow history from the MOX 3D–0D heart model, and supply actual
