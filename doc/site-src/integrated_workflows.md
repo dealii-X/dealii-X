@@ -71,22 +71,18 @@ record explicitly leaves numerical validation `not-run`.
 
 ### MetricFlowX upstream status (2026-10-22)
 
-The pin is main `2afa9060f7657363f19a6983dc63dc217a071200`, including the
-DebugRelease/install, PETSc backend, ADAN56 area, zero-capacitance RCR, SI dataset
-and component-tolerance/sonic-diagnostic updates in PRs #8 and #16–#21.
-Upstream [PR #23](https://github.com/luca-heltai/metric-flow-x/pull/23) completes
-the CSV/terminal feature port and fixes the small MPI inlet solve.
-However, #22 and #23 were merged into stack branches rather than main. The
-feature tip alone does not contain main's corrected ADAN56 geometry or SI assets.
+The pin is consolidated upstream main
+`77cc1d7239ef015a1dcf73cb408a0cfb3ece9fe2`. Upstream
+[PR #28](https://github.com/luca-heltai/metric-flow-x/pull/28) brings the
+reviewed #22/#23 terminal/CSV/MPI stack into main while preserving the
+DebugRelease/install, PETSc backend, ADAN56 area, zero-capacitance RCR,
+SI dataset and component-tolerance/sonic-diagnostic changes from #8 and #16–#21.
 
-The retained `metric-flow-x.patch` therefore replays the official #22/#23 stack
-onto pinned main, preserving both sets of changes. It replaces the initial
-ad-hoc/header-only implementation and includes the upstream parser library,
-licenses and regression tests. The recipe applies and records the patch as usual;
-see `integration/patches/metric-flow-x.md` for the exact source provenance.
-[Issue #40](https://github.com/dealii-X/dealii-X/issues/40) tracks consolidation
-into main and eventual patch deletion. Feature port #17 and MPI defect #18 are
-complete; full network and scientific gates remain #33/#32.
+The global PR now uses this revision directly. The temporary MetricFlowX replay
+patch has been removed; no application patch is needed for its CSV/terminal
+interfaces. Central feature/MPI/consolidation issues #17, #18 and #40 are
+complete. Full network and scientific gates remain #33/#32. Both adapters
+explicitly enable upstream's optional terminal CSV exports.
 
 ## Time-series contract
 
@@ -253,7 +249,7 @@ Use a fresh output directory for each run. The synthetic chain executes the real
 boundary data; **it does not execute an organ model**. The cardiac pressure column
 is not prescribed at the inlet.
 
-The replayed upstream implementation provides `Inflow CSV file` (`time_s,flow_m3_s`) and optional
+The upstream implementation provides `Inflow CSV file` (`time_s,flow_m3_s`) and optional
 `Inflow CSV period`. Empty CSV configuration preserves the analytical inlet.
 Both adapters set `Write terminal CSV files = true`: terminal histories are
 optional in the upstream implementation and must be enabled explicitly.

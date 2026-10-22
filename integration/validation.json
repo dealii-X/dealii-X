@@ -17,7 +17,7 @@
       "installed_plugins_loaded": 10,
       "native_heart_graph": "passed"
     },
-    "metric_flow_x": "current main plus recorded merged-stack replay: native ARM64 Release build; 7 focused CTests pass",
+    "metric_flow_x": "clean upstream main: native ARM64 Release build, 7 focused CTests, analytic/CSV MPI 1/2 ranks, short MOX/ADAN56; no integration patch",
     "immersx": "native library and Poisson build/run passed",
     "polydeal": "native library and bbox test passed with retained patch",
     "4c": "current oxygen header regression and Sacado derivative checks pass with patch; no full candidate build",
@@ -39,10 +39,11 @@
       },
       "idas_error_reports": 2,
       "full_8_seconds": "prepared, not validated",
-      "conservation_and_convergence": "pending"
+      "conservation_and_convergence": "pending",
+      "source_git_sha": "77cc1d7239ef015a1dcf73cb408a0cfb3ece9fe2"
     },
     "synthetic_metric_serial_max_flow_error_m3_s": 6.8995e-21,
-    "metric_multi_rank": "resolved by upstream PR #23; analytic/CSV nonzero inlet and terminal P/Q comparison passes at 1 and 2 ranks on integrated main+stack"
+    "metric_multi_rank": "clean consolidated upstream main: analytic/CSV nonzero inlet and terminal P/Q comparison passes at 1 and 2 ranks"
   },
   "scientific": {
     "paper_comparison": "not performed",
@@ -84,14 +85,12 @@
     "https://github.com/dealii-X/dealii-X/issues/35",
     "https://github.com/dealii-X/dealii-X/issues/36",
     "https://github.com/dealii-X/dealii-X/issues/37",
-    "https://github.com/dealii-X/dealii-X/issues/38",
-    "https://github.com/dealii-X/dealii-X/issues/40"
+    "https://github.com/dealii-X/dealii-X/issues/38"
   ],
   "metric_flow_x_upstream": {
-    "main": "2afa9060f7657363f19a6983dc63dc217a071200",
+    "main": "77cc1d7239ef015a1dcf73cb408a0cfb3ece9fe2",
     "merged_stack": "a808b423bd5e4599d472855a4ff887336de27579",
-    "stack_is_in_main": false,
-    "replay_patch_sha256": "8da76a284100616af41b23ff00abf10110c494f7cf95b8f1e415dda414995ab6",
+    "stack_is_in_main": true,
     "consolidation_issue": "https://github.com/dealii-X/dealii-X/issues/40",
     "checked_prs": [
       8,
@@ -102,10 +101,13 @@
       21,
       22,
       23
-    ]
+    ],
+    "integration_patch_required": false,
+    "consolidation_pr": "https://github.com/luca-heltai/metric-flow-x/pull/28"
   },
   "completed_issues": [
     "https://github.com/dealii-X/dealii-X/issues/17",
-    "https://github.com/dealii-X/dealii-X/issues/18"
+    "https://github.com/dealii-X/dealii-X/issues/18",
+    "https://github.com/dealii-X/dealii-X/issues/40"
   ]
 }

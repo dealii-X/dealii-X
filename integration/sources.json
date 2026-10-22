@@ -46,15 +46,12 @@
         "SUNDIALS",
         "PETSc"
       ],
-      "checkout_sha": "2afa9060f7657363f19a6983dc63dc217a071200",
-      "validation": "macOS ARM64 Release build; 7 focused CTests; analytic/CSV MPI 1/2 ranks; short ADAN56 with replay patch",
+      "checkout_sha": "77cc1d7239ef015a1dcf73cb408a0cfb3ece9fe2",
+      "validation": "clean upstream main: native ARM64 Release build, 7 focused CTests, analytic/CSV MPI 1/2 ranks, short MOX/ADAN56; no integration patch",
       "data_status": "group-case-required",
       "working_tree_dirty": false,
-      "candidate_sha": "2afa9060f7657363f19a6983dc63dc217a071200",
-      "candidate_origin": "main at 2026-10-22; merged stack PRs #22/#23 replayed by recorded patch",
-      "integration_patch_sha256": "8da76a284100616af41b23ff00abf10110c494f7cf95b8f1e415dda414995ab6",
-      "upstream_stack_commit": "a808b423bd5e4599d472855a4ff887336de27579",
-      "consolidation_issue": "https://github.com/dealii-X/dealii-X/issues/40"
+      "candidate_sha": "77cc1d7239ef015a1dcf73cb408a0cfb3ece9fe2",
+      "candidate_origin": "upstream main: PR #28 consolidates merged #22/#23 with #16\u2013#21"
     },
     {
       "name": "immersx",

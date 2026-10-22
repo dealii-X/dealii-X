@@ -28,6 +28,6 @@ All coordination issues live in this repository. Status checked on 2026-10-22.
 | open | [Containers: validate modular/full CPU images and usable platform runtime](https://github.com/dealii-X/dealii-X/issues/36) | dealii-X distribution / platform nested services | — |
 | open | [HPC: validate Apptainer/Slurm MPI and multi-node execution](https://github.com/dealii-X/dealii-X/issues/37) | dealii-X deployment / target cluster | — |
 | open | [Assets/provenance: retain retrievable scientific snapshots as assets evolve](https://github.com/dealii-X/dealii-X/issues/38) | dealii-X dataset release and workflow provenance | — |
-| open | [MetricFlowX: consolidate merged PR stack into main and retire integration replay patch](https://github.com/dealii-X/dealii-X/issues/40) | luca-heltai/metric-flow-x | integration/patches/metric-flow-x.patch |
+| completed | [MetricFlowX: consolidate merged PR stack into main and retire integration replay patch](https://github.com/dealii-X/dealii-X/issues/40) | luca-heltai/metric-flow-x | — |
 
-MetricFlowX CSV/terminal and MPI fixes are merged in upstream PR #23. That stack is not in current main; #40 tracks consolidating it without reverting main's SI datasets, ADAN56 areas and component tolerances. The retained MetricFlowX patch is a replay of this reviewed stack on the pinned main, with both sides of the merge retained.
+MetricFlowX PR #28 consolidates #22/#23 into main `77cc1d7239ef015a1dcf73cb408a0cfb3ece9fe2` while preserving the earlier SI dataset, ADAN56 area and tolerance fixes. The global PR now uses this commit directly; the MetricFlowX integration patch has been removed. #17, #18 and #40 are complete.

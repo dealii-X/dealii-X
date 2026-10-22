@@ -309,3 +309,22 @@ by the presence of a recipe.
 - Revalidated the final integration with 21 Python tests, the Linux amd64
   contracts image and `./scripts/build_doc.sh`; all pass. The original local
   application work and unrelated generated documentation page remain preserved.
+
+### 16. Use consolidated upstream MetricFlowX main directly
+
+- Verified the user's upstream merge: PR #28 consolidates #22/#23 into main
+  `77cc1d7239ef015a1dcf73cb408a0cfb3ece9fe2`, including the earlier main fixes.
+  Confirmed ancestry and inspected the differences from the tested combined tree.
+- Updated PR #39's gitlink/source manifest to this exact upstream revision.
+  Removed `integration/patches/metric-flow-x.patch` and its temporary replay note;
+  no local MetricFlowX source patch is now needed.
+- Rebuilt native ARM64 Release from a clean upstream checkout; reran analytic/CSV
+  comparisons at one/two ranks and the seven focused native CTests. ADAN56 area
+  and dataset-name regressions also pass. The short real MOX/ADAN56 pipeline
+  exports 31 terminal bundles and passes its inlet gate; its two recovered IDA
+  step-limit reports remain a separate numerical-validation task.
+- Updated the PR summary, source/validation metadata, component tracker and
+  central issues to mark upstream consolidation/patch retirement complete.
+  The complete-release, eight-second and physiological gates remain open.
+- Re-ran 21 Python integration tests, the Linux amd64 contracts image and the
+  documentation build. Original dirty application checkouts remain untouched.

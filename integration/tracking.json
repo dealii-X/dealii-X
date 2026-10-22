@@ -10,7 +10,7 @@
       "url": "https://github.com/dealii-X/dealii-X/issues/17",
       "patch": null,
       "status": "completed",
-      "resolution": "Upstream PR #23; replay retirement tracked separately in #40"
+      "resolution": "Upstream PR #23, consolidated into main by #28; no integration patch"
     },
     {
       "id": "metric-mpi",
@@ -185,8 +185,9 @@
       "title": "MetricFlowX: consolidate merged PR stack into main and retire integration replay patch",
       "target": "luca-heltai/metric-flow-x",
       "url": "https://github.com/dealii-X/dealii-X/issues/40",
-      "patch": "integration/patches/metric-flow-x.patch",
-      "status": "open"
+      "patch": null,
+      "status": "completed",
+      "resolution": "Merged into upstream main by PR #28; replay patch removed"
     }
   ],
   "pull_request": "https://github.com/dealii-X/dealii-X/pull/39"
