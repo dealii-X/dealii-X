@@ -1,0 +1,213 @@
+{
+  "version": 1,
+  "repository": "dealii-X/dealii-X",
+  "meta_issue": "https://github.com/dealii-X/dealii-X/issues/16",
+  "tasks": [
+    {
+      "id": "metric-port",
+      "title": "MetricFlowX: port CSV inlet and terminal-trace patches upstream",
+      "target": "luca-heltai/metric-flow-x",
+      "url": "https://github.com/dealii-X/dealii-X/issues/17",
+      "patch": null,
+      "status": "completed",
+      "resolution": "Upstream PR #23, consolidated into main by #28; no integration patch"
+    },
+    {
+      "id": "metric-mpi",
+      "title": "MetricFlowX: fix multi-rank inlet constraint/IDA discrepancy",
+      "target": "luca-heltai/metric-flow-x",
+      "url": "https://github.com/dealii-X/dealii-X/issues/18",
+      "patch": null,
+      "status": "completed"
+    },
+    {
+      "id": "dealii-empty",
+      "title": "deal.II: resolve empty-rank SUNDIALS NVector minimum failure",
+      "target": "dealii/dealii",
+      "url": "https://github.com/dealii-X/dealii-X/issues/19",
+      "patch": null,
+      "status": "completed",
+      "resolution": "Upstream PR #20307 merged at 8122d681; distribution validation remains #34"
+    },
+    {
+      "id": "platform-port",
+      "title": "dealiiX-platform: port per-stage profiles and named artifacts upstream",
+      "target": "2listic/dealiiX-platform",
+      "url": "https://github.com/dealii-X/dealii-X/issues/20",
+      "patch": "integration/patches/platform.patch",
+      "status": "open"
+    },
+    {
+      "id": "polydeal-port",
+      "title": "Polydeal: upstream explicit quadrature includes and verify examples",
+      "target": "fdrmrc/Polydeal",
+      "url": "https://github.com/dealii-X/dealii-X/issues/21",
+      "patch": null,
+      "status": "completed",
+      "resolution": "Upstream PR #161 at 1120f5de; clean native library/bbox test passed, patch removed"
+    },
+    {
+      "id": "4c-port",
+      "title": "4C: upstream positive oxygen inversion and Sacado derivative fix",
+      "target": "4C-multiphysics/4C",
+      "url": "https://github.com/dealii-X/dealii-X/issues/22",
+      "patch": "integration/patches/4c.patch",
+      "status": "open"
+    },
+    {
+      "id": "exabrain-port",
+      "title": "ExaBrain: modernize deal.II APIs and port portable compiler flags upstream",
+      "target": "BRAINIACS-Group/ExaBrain",
+      "url": "https://github.com/dealii-X/dealii-X/issues/23",
+      "patch": "integration/patches/exabrain.patch",
+      "status": "open"
+    },
+    {
+      "id": "lifex-build",
+      "title": "lifeX: resolve deal.II compatibility and identify the complete MOX model",
+      "target": "gitlab.com/lifex/lifex-public",
+      "url": "https://github.com/dealii-X/dealii-X/issues/24",
+      "patch": null,
+      "status": "open"
+    },
+    {
+      "id": "exadg-simd",
+      "title": "ExaDG: resolve alveolar-branch SIMD portability and verify Linux build",
+      "target": "temuer/exadg:alveolar-model",
+      "url": "https://github.com/dealii-X/dealii-X/issues/25",
+      "patch": null,
+      "status": "open"
+    },
+    {
+      "id": "exadg-case",
+      "title": "ExaDG: provide alveolar mesh and tabulated respiratory forcing interface",
+      "target": "temuer/exadg:alveolar-model",
+      "url": "https://github.com/dealii-X/dealii-X/issues/26",
+      "patch": null,
+      "status": "open"
+    },
+    {
+      "id": "psblas-port",
+      "title": "PSBLAS-EXT: upstream missing Autoconf helper/bootstrap fix",
+      "target": "sfilippone/psblas3-ext",
+      "url": "https://github.com/dealii-X/dealii-X/issues/27",
+      "patch": "integration/vendor/compile and integration/containers/build-psctoolkit.sh",
+      "status": "open"
+    },
+    {
+      "id": "psc-profiles",
+      "title": "PSCToolkit: validate complete CPU and separate CUDA builds",
+      "target": "psctoolkit/psctoolkit and nested components",
+      "url": "https://github.com/dealii-X/dealii-X/issues/28",
+      "patch": null,
+      "status": "open"
+    },
+    {
+      "id": "liver-case",
+      "title": "ImmersX/liver: implement physiological terminal-to-organ coupling case",
+      "target": "luca-heltai/immersx",
+      "url": "https://github.com/dealii-X/dealii-X/issues/29",
+      "patch": null,
+      "status": "open"
+    },
+    {
+      "id": "brain-case",
+      "title": "ExaBrain: select vascularized brain case and map ADAN56 terminals",
+      "target": "BRAINIACS-Group/ExaBrain",
+      "url": "https://github.com/dealii-X/dealii-X/issues/30",
+      "patch": null,
+      "status": "open"
+    },
+    {
+      "id": "4c-case",
+      "title": "4C: build complete pinned sources and validate pulmonary exchange case",
+      "target": "4C-multiphysics/4C",
+      "url": "https://github.com/dealii-X/dealii-X/issues/31",
+      "patch": null,
+      "status": "open"
+    },
+    {
+      "id": "mox-contract",
+      "title": "Heart/MOX: confirm valve sign, pressure datum and ADAN56 RCR compatibility",
+      "target": "MOX model / MetricFlowX scientific interface",
+      "url": "https://github.com/dealii-X/dealii-X/issues/32",
+      "patch": null,
+      "status": "open"
+    },
+    {
+      "id": "adan-validation",
+      "title": "ADAN56: complete 8-second, refinement and conservation validation",
+      "target": "luca-heltai/metric-flow-x / integration",
+      "url": "https://github.com/dealii-X/dealii-X/issues/33",
+      "patch": null,
+      "status": "open"
+    },
+    {
+      "id": "source-freeze",
+      "title": "Sources/deal.II: validate common Linux baseline and freeze gitlinks",
+      "target": "All application/library repositories",
+      "url": "https://github.com/dealii-X/dealii-X/issues/34",
+      "patch": null,
+      "status": "open"
+    },
+    {
+      "id": "coral-e2e",
+      "title": "Coral/platform: run the physiological chain through installed plugins and GUI",
+      "target": "Coral / 2listic/dealiiX-platform / integration",
+      "url": "https://github.com/dealii-X/dealii-X/issues/35",
+      "patch": null,
+      "status": "open"
+    },
+    {
+      "id": "containers",
+      "title": "Containers: validate modular/full CPU images and usable platform runtime",
+      "target": "dealii-X distribution / platform nested services",
+      "url": "https://github.com/dealii-X/dealii-X/issues/36",
+      "patch": null,
+      "status": "open"
+    },
+    {
+      "id": "hpc",
+      "title": "HPC: validate Apptainer/Slurm MPI and multi-node execution",
+      "target": "dealii-X deployment / target cluster",
+      "url": "https://github.com/dealii-X/dealii-X/issues/37",
+      "patch": null,
+      "status": "open"
+    },
+    {
+      "id": "asset-snapshots",
+      "title": "Assets/provenance: retain retrievable scientific snapshots as assets evolve",
+      "target": "dealii-X dataset release and workflow provenance",
+      "url": "https://github.com/dealii-X/dealii-X/issues/38",
+      "patch": null,
+      "status": "open"
+    },
+    {
+      "id": "metric-consolidation",
+      "title": "MetricFlowX: consolidate merged PR stack into main and retire integration replay patch",
+      "target": "luca-heltai/metric-flow-x",
+      "url": "https://github.com/dealii-X/dealii-X/issues/40",
+      "patch": null,
+      "status": "completed",
+      "resolution": "Merged into upstream main by PR #28; replay patch removed"
+    }
+  ],
+  "pull_request": "https://github.com/dealii-X/dealii-X/pull/39",
+  "issue_audit": {
+    "date": "2026-10-22",
+    "closed_completed": [
+      2,
+      7,
+      19,
+      21
+    ],
+    "closed_superseded": {
+      "15": [
+        24,
+        25,
+        26
+      ]
+    },
+    "remaining_work": "Open component/scientific/distribution issues retain their acceptance gates"
+  }
+}

@@ -1,0 +1,80 @@
+--- a/src/porofluid_pressure_based_elast_scatra/4C_porofluid_pressure_based_elast_scatra_utils.hpp
++++ b/src/porofluid_pressure_based_elast_scatra/4C_porofluid_pressure_based_elast_scatra_utils.hpp
+@@ -16,6 +16,7 @@
+ 
+ #include <Sacado.hpp>
+ 
++#include <algorithm>
+ #include <cmath>
+ #include <memory>
+ #include <set>
+@@ -88,30 +89,49 @@
+   void get_oxy_partial_pressure_from_concentration(T& Pb, const T& CaO2, const double& CaO2_max,
+       const double& Pb50, const double& n, const double& alpha_eff)
+   {
+-    // start value
+-    Pb = Pb50 * 2.0 * CaO2 / CaO2_max;
++    // The Hill relation is strictly increasing for nonnegative pressure.
++    // Its polynomial form also has negative roots, so unconstrained Newton can
++    // select an unphysical branch during coupled nonlinear iterations.
++    const double concentration = Sacado::ScalarValue<T>::eval(CaO2);
++    if (!std::isfinite(concentration) || concentration < 0.0 || CaO2_max <= 0.0 ||
++        Pb50 <= 0.0 || n <= 1.0 || alpha_eff <= 0.0)
++      FOUR_C_THROW("Invalid state or parameters for oxygen partial-pressure inversion");
+ 
+-    bool converged = false;
+-    // Newton loop
+-    for (int i = 0; i < 20; i++)
++    if (concentration == 0.0)
+     {
+-      // function
+-      T f = (std::pow(Pb50, n) + std::pow(Pb, n)) * CaO2 - CaO2_max * std::pow(Pb, n) -
+-            Pb * (std::pow(Pb, n) + std::pow(Pb50, n)) * alpha_eff;
+-      if (fabs(f) < 1.0e-10)
+-      {
+-        converged = true;
+-        break;
+-      }
+-      // deriv
+-      T dfdPb = n * std::pow(Pb, (n - 1)) * CaO2 - CaO2_max * n * std::pow(Pb, (n - 1)) -
+-                ((n + 1) * std::pow(Pb, n) + std::pow(Pb50, n)) * alpha_eff;
+-      // update
+-      Pb = Pb - f / dfdPb;
++      Pb = CaO2 / alpha_eff;
++      return;
+     }
+-    if (!converged)
++
++    const double half_saturation_power = std::pow(Pb50, n);
++    double lower = 0.0;
++    // The dissolved contribution alone reaches concentration at this bound.
++    double upper = std::max(Pb50, concentration / alpha_eff);
++    for (int iteration = 0; iteration < 80; ++iteration)
+     {
+-      FOUR_C_THROW("local Newton for computation of oxygen partial pressure unconverged");
++      const double midpoint = 0.5 * (lower + upper);
++      const double pressure_power = std::pow(midpoint, n);
++      const double value = alpha_eff * midpoint +
++                           CaO2_max * pressure_power / (half_saturation_power + pressure_power);
++      if (value < concentration)
++        lower = midpoint;
++      else
++        upper = midpoint;
++      if (upper - lower <= 1.0e-13 * std::max(1.0, midpoint)) break;
++    }
++
++    // Recover the implicit derivative for Sacado inputs. The bracket is found
++    // with scalar values; these Newton corrections propagate the full AD state
++    // through the original, unchanged Hill relation at its positive root.
++    Pb = 0.5 * (lower + upper);
++    for (int iteration = 0; iteration < 2; ++iteration)
++    {
++      const T pressure_power = std::pow(Pb, n);
++      const T denominator = half_saturation_power + pressure_power;
++      const T residual = alpha_eff * Pb + CaO2_max * pressure_power / denominator - CaO2;
++      const T derivative = alpha_eff + CaO2_max * n * half_saturation_power *
++                                          std::pow(Pb, n - 1.0) / (denominator * denominator);
++      Pb -= residual / derivative;
+     }
+   }
+ }  // namespace PoroPressureBased

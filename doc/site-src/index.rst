@@ -14,4 +14,5 @@ Contents
 
    project_overview
    technical_scope
+   integrated_workflows
    supporting_code/index

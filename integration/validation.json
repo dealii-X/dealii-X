@@ -1,0 +1,125 @@
+{
+  "version": 1,
+  "date": "2026-10-22",
+  "complete_release_validated": false,
+  "host": "macOS ARM64; installed deal.II 9.8.0-rc1, SUNDIALS 6.7.0; separate Linux amd64 contracts image",
+  "software": {
+    "python_contract_tests": {
+      "passed": 21
+    },
+    "platform": {
+      "tests_passed": 189,
+      "frontend_and_electron_types": "passed",
+      "production_build": "passed"
+    },
+    "coral": {
+      "core_ctests_passed": 54,
+      "installed_plugins_loaded": 10,
+      "native_heart_graph": "passed"
+    },
+    "metric_flow_x": "clean upstream main: native ARM64 Release build, 7 focused CTests, analytic/CSV MPI 1/2 ranks, short MOX/ADAN56; no integration patch",
+    "immersx": "native library and Poisson build/run passed",
+    "polydeal": "upstream Linux compile/Debug/Release CI passed; clean native ARM64 Release library and bbox regression passed",
+    "4c": "current oxygen header regression and Sacado derivative checks pass with patch; no full candidate build",
+    "psctoolkit": "PSBLAS and PSBLAS-EXT installed; AMG stops missing native omp.h; full CPU/CUDA not validated",
+    "lifex": "native compile fails dimensioned ReferenceCell API",
+    "exabrain": "native compile fails removed shared_ptr/DataOut APIs",
+    "exadg": "alveolar candidate native compile fails ARM64 SIMD fallbacks; group mesh missing",
+    "metric_flow_x_preservation_tests": {
+      "adan56_area_tests": 2,
+      "dataset_path_tests": 2
+    },
+    "dealii_empty_rank_fix": {
+      "upstream_commit": "8122d681995b6baf254bcab3c943e9b0ef4c5870",
+      "upstream_ci": "passed including MPI",
+      "local_common_distribution_build": "pending #34"
+    }
+  },
+  "numerical": {
+    "adan56": {
+      "scope": "MOX QAV at inlet 0; 77 unrefined segments, 0\u20130.002 s, 31 terminal exports",
+      "inlet_flow_check": {
+        "max_absolute_error_m3_s": 6.203854594147708e-25,
+        "tolerance_m3_s": 1e-12
+      },
+      "idas_error_reports": 2,
+      "full_8_seconds": "prepared, not validated",
+      "conservation_and_convergence": "pending",
+      "source_git_sha": "77cc1d7239ef015a1dcf73cb408a0cfb3ece9fe2"
+    },
+    "synthetic_metric_serial_max_flow_error_m3_s": 6.8995e-21,
+    "metric_multi_rank": "clean consolidated upstream main: analytic/CSV nonzero inlet and terminal P/Q comparison passes at 1 and 2 ranks"
+  },
+  "scientific": {
+    "paper_comparison": "not performed",
+    "organ_cases": "required",
+    "MOX_pressure_datum": "not specified by supplied legend",
+    "MOX_valve_sign": "forward orientation assumption pending group confirmation",
+    "original_0d_compatibility": "pending",
+    "HPC_multinode": "target cluster MPI/PMIx profile required",
+    "CUDA": "not run"
+  },
+  "existing_references": [
+    "https://github.com/luca-heltai/metric-flow-x/issues/10",
+    "https://github.com/2listic/dealiiX-platform/issues/240",
+    "https://github.com/dealii/dealii/issues/20306",
+    "https://github.com/BRAINIACS-Group/ExaBrain/issues/3",
+    "https://github.com/fdrmrc/Polydeal/issues/160",
+    "https://github.com/4C-multiphysics/4C/issues/2354",
+    "https://github.com/sfilippone/psblas3-ext/issues/1",
+    "https://github.com/dealii-X/dealii-X/issues/15"
+  ],
+  "meta_issue": "https://github.com/dealii-X/dealii-X/issues/16",
+  "issues": [
+    "https://github.com/dealii-X/dealii-X/issues/20",
+    "https://github.com/dealii-X/dealii-X/issues/22",
+    "https://github.com/dealii-X/dealii-X/issues/23",
+    "https://github.com/dealii-X/dealii-X/issues/24",
+    "https://github.com/dealii-X/dealii-X/issues/25",
+    "https://github.com/dealii-X/dealii-X/issues/26",
+    "https://github.com/dealii-X/dealii-X/issues/27",
+    "https://github.com/dealii-X/dealii-X/issues/28",
+    "https://github.com/dealii-X/dealii-X/issues/29",
+    "https://github.com/dealii-X/dealii-X/issues/30",
+    "https://github.com/dealii-X/dealii-X/issues/31",
+    "https://github.com/dealii-X/dealii-X/issues/32",
+    "https://github.com/dealii-X/dealii-X/issues/33",
+    "https://github.com/dealii-X/dealii-X/issues/34",
+    "https://github.com/dealii-X/dealii-X/issues/35",
+    "https://github.com/dealii-X/dealii-X/issues/36",
+    "https://github.com/dealii-X/dealii-X/issues/37",
+    "https://github.com/dealii-X/dealii-X/issues/38"
+  ],
+  "metric_flow_x_upstream": {
+    "main": "77cc1d7239ef015a1dcf73cb408a0cfb3ece9fe2",
+    "merged_stack": "a808b423bd5e4599d472855a4ff887336de27579",
+    "stack_is_in_main": true,
+    "consolidation_issue": "https://github.com/dealii-X/dealii-X/issues/40",
+    "checked_prs": [
+      8,
+      16,
+      17,
+      18,
+      20,
+      21,
+      22,
+      23
+    ],
+    "integration_patch_required": false,
+    "consolidation_pr": "https://github.com/luca-heltai/metric-flow-x/pull/28"
+  },
+  "completed_issues": [
+    "https://github.com/dealii-X/dealii-X/issues/17",
+    "https://github.com/dealii-X/dealii-X/issues/18",
+    "https://github.com/dealii-X/dealii-X/issues/40",
+    "https://github.com/dealii-X/dealii-X/issues/19",
+    "https://github.com/dealii-X/dealii-X/issues/21"
+  ],
+  "superseded_issues": {
+    "https://github.com/dealii-X/dealii-X/issues/15": [
+      "https://github.com/dealii-X/dealii-X/issues/24",
+      "https://github.com/dealii-X/dealii-X/issues/25",
+      "https://github.com/dealii-X/dealii-X/issues/26"
+    ]
+  }
+}

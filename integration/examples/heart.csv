@@ -1,0 +1,4 @@
+time_ms,flow_ml_s,pressure_mmHg
+0,0,80
+5,0.01,81
+10,0,80

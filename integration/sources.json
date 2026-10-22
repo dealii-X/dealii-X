@@ -1,0 +1,213 @@
+{
+  "version": 1,
+  "policy": "validate-before-updating-gitlinks",
+  "components": [
+    {
+      "name": "dealii",
+      "path": "libraries/dealii",
+      "url": "https://github.com/dealii/dealii.git",
+      "branch": "master",
+      "dependencies": [
+        "MPI",
+        "p4est",
+        "PETSc",
+        "Trilinos",
+        "SUNDIALS"
+      ],
+      "checkout_sha": "418365365091eb3eef29cb06b58fb85430211de8",
+      "validation": "not-run",
+      "data_status": "group-case-required",
+      "working_tree_dirty": false,
+      "candidate_sha": "8122d681995b6baf254bcab3c943e9b0ef4c5870",
+      "candidate_origin": "merged upstream PR #20307; empty-rank SUNDIALS fix, distribution build pending #34",
+      "upstream_fix": "https://github.com/dealii/dealii/pull/20307"
+    },
+    {
+      "name": "lifex",
+      "path": "applications/heart/lifex",
+      "url": "https://gitlab.com/lifex/lifex-public.git",
+      "branch": "main",
+      "dependencies": [
+        "dealii"
+      ],
+      "checkout_sha": "9df962726146e5a8855dfea4763b607b6109e709",
+      "validation": "not-run",
+      "data_status": "group-case-required",
+      "working_tree_dirty": false,
+      "candidate_sha": "7e0421580bb32a5e0e3ec088ca313264c61222a2",
+      "candidate_origin": "remote-query"
+    },
+    {
+      "name": "metric-flow-x",
+      "path": "applications/circulation/metric-flow-x",
+      "url": "https://github.com/luca-heltai/metric-flow-x.git",
+      "branch": "main",
+      "dependencies": [
+        "dealii",
+        "SUNDIALS",
+        "PETSc"
+      ],
+      "checkout_sha": "77cc1d7239ef015a1dcf73cb408a0cfb3ece9fe2",
+      "validation": "clean upstream main: native ARM64 Release build, 7 focused CTests, analytic/CSV MPI 1/2 ranks, short MOX/ADAN56; no integration patch",
+      "data_status": "group-case-required",
+      "working_tree_dirty": false,
+      "candidate_sha": "77cc1d7239ef015a1dcf73cb408a0cfb3ece9fe2",
+      "candidate_origin": "upstream main: PR #28 consolidates merged #22/#23 with #16\u2013#21"
+    },
+    {
+      "name": "immersx",
+      "path": "applications/liver/immersx",
+      "url": "https://github.com/luca-heltai/immersx.git",
+      "branch": "master",
+      "dependencies": [
+        "dealii",
+        "coral"
+      ],
+      "checkout_sha": "17e17796d09145a9c501eaa2c09e34b8573ff5d2",
+      "validation": "not-run",
+      "data_status": "group-case-required",
+      "working_tree_dirty": false,
+      "candidate_sha": "b1ca02d06f52f2644a383aea311bf9e8f09918f3",
+      "candidate_origin": "remote-query"
+    },
+    {
+      "name": "exabrain",
+      "path": "applications/brain/ExaBrain",
+      "url": "https://github.com/BRAINIACS-Group/ExaBrain.git",
+      "branch": "main",
+      "dependencies": [
+        "dealii",
+        "Trilinos/Sacado"
+      ],
+      "checkout_sha": "9a4f3218defea30b4b585411ed9ddaf58d0b4d3b",
+      "validation": "not-run",
+      "data_status": "group-case-required",
+      "working_tree_dirty": false,
+      "candidate_sha": "9a4f3218defea30b4b585411ed9ddaf58d0b4d3b",
+      "candidate_origin": "remote-query"
+    },
+    {
+      "name": "exadg",
+      "path": "applications/lungs/exadg",
+      "url": "https://github.com/temuer/exadg.git",
+      "branch": "alveolar-model",
+      "dependencies": [
+        "dealii",
+        "p4est"
+      ],
+      "checkout_sha": "53698e43277d2e59d2e9fb13eae75f26587a97cd",
+      "validation": "not-run",
+      "data_status": "group-case-required",
+      "working_tree_dirty": false,
+      "candidate_sha": "0fc5c8aa8dc096db153ece05215b497ec9db94d0",
+      "candidate_origin": "remote-query"
+    },
+    {
+      "name": "4c",
+      "path": "applications/lungs/4C",
+      "url": "https://github.com/4C-multiphysics/4C.git",
+      "branch": "main",
+      "dependencies": [
+        "Trilinos/Thyra/Shards/Intrepid2/Zoltan2/Stratimikos/Teko/NOX",
+        "CLN",
+        "NetCDF"
+      ],
+      "checkout_sha": "5968c9ab3c86576f47e71471d9b7b4af2f9ac205",
+      "validation": "not-run",
+      "data_status": "group-case-required",
+      "working_tree_dirty": true,
+      "candidate_sha": "16cff11a8ed481f362a73e4332193d234f3dbcd6",
+      "candidate_origin": "remote-query"
+    },
+    {
+      "name": "psctoolkit",
+      "path": "libraries/psctoolkit",
+      "url": "https://github.com/psctoolkit/psctoolkit.git",
+      "branch": "master",
+      "dependencies": [
+        "MPI",
+        "BLAS",
+        "Fortran"
+      ],
+      "checkout_sha": "883a4280465d5705c205f46fa662bd342f752d35",
+      "validation": "not-run",
+      "data_status": "group-case-required",
+      "working_tree_dirty": true,
+      "candidate_sha": "883a4280465d5705c205f46fa662bd342f752d35",
+      "candidate_origin": "remote-query"
+    },
+    {
+      "name": "polydeal",
+      "path": "tools/polygonal",
+      "url": "https://github.com/fdrmrc/Polydeal.git",
+      "branch": "main",
+      "dependencies": [
+        "dealii"
+      ],
+      "checkout_sha": "1120f5dec15368fbacdcdb10100043dd170cecf1",
+      "validation": "upstream Linux compile/Debug/Release CI passed; clean native ARM64 Release library and bbox regression passed",
+      "data_status": "group-case-required",
+      "working_tree_dirty": false,
+      "candidate_sha": "1120f5dec15368fbacdcdb10100043dd170cecf1",
+      "candidate_origin": "upstream PR #161 merged, clean source; include workaround retired"
+    },
+    {
+      "name": "platform",
+      "path": "tools/dealiiX-platform",
+      "url": "https://github.com/2listic/dealiiX-platform.git",
+      "branch": "main",
+      "dependencies": [
+        "Node.js",
+        "Electron",
+        "coral",
+        "visualizer",
+        "remote-server"
+      ],
+      "checkout_sha": "36580d3c6fe94cc98e2023faf06bca8272eceb25",
+      "validation": "not-run",
+      "data_status": "group-case-required",
+      "working_tree_dirty": false,
+      "candidate_sha": "36580d3c6fe94cc98e2023faf06bca8272eceb25",
+      "candidate_origin": "remote-query"
+    },
+    {
+      "name": "coral",
+      "path": "tools/dealiiX-platform/coral",
+      "url": "https://github.com/2listic/coral.git",
+      "branch": "HEAD",
+      "checkout_sha": "a9bda949806cd9d6a91124d9c5d0ccda949a7f61",
+      "candidate_sha": "6764d0bc38271be4b95c7a9f56af7af20b33bb60",
+      "candidate_origin": "remote-query",
+      "validation": "not-run",
+      "dependencies": [],
+      "data_status": "not-applicable",
+      "working_tree_dirty": false
+    },
+    {
+      "name": "visualizer",
+      "path": "tools/dealiiX-platform/coral-visualizer",
+      "url": "https://github.com/2listic/coral-visualizer.git",
+      "branch": "HEAD",
+      "checkout_sha": "7fbe1c20af1223b3ec571f15ee475ca62ec91959",
+      "candidate_sha": "e7234760d0f1d49057b01b6e8ff652b4585c8383",
+      "candidate_origin": "remote-query",
+      "validation": "not-run",
+      "dependencies": [],
+      "data_status": "not-applicable",
+      "working_tree_dirty": false
+    },
+    {
+      "name": "remote-server",
+      "path": "tools/dealiiX-platform/coral-remote-server",
+      "url": "https://github.com/2listic/coral-remote-server.git",
+      "branch": "HEAD",
+      "checkout_sha": "7d2d92fc9f5187c5f59ed5695660d298c56b3248",
+      "candidate_sha": "d94bfb938542b58662e7b8250510c7eee456fb3b",
+      "candidate_origin": "remote-query",
+      "validation": "not-run",
+      "dependencies": [],
+      "data_status": "not-applicable",
+      "working_tree_dirty": false
+    }
+  ]
+}

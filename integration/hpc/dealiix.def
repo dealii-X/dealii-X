@@ -1,0 +1,12 @@
+Bootstrap: docker
+From: {{ image }}
+
+%environment
+    export PYTHONPATH=/opt/dealiix-integration
+    export PATH=/opt/dealiix/coral/bin/Release:/opt/dealiix/metric-flow-x/bin:$PATH
+
+%runscript
+    exec python3 -m dealiix "$@"
+
+%test
+    python3 -m unittest discover -s /opt/dealiix-integration/tests

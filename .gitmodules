@@ -12,7 +12,7 @@
 	url = git@github.com:fdrmrc/Polydeal.git
 [submodule "applications/liver/reduced_lagrange_multipliers"]
 	path = applications/liver/immersx
-	url = git@github.com:luca-heltai/reduced_lagrange_multipliers.git
+	url = git@github.com:luca-heltai/immersx.git
 [submodule "applications/brain/ExaBrain"]
 	path = applications/brain/ExaBrain
 	url = git@github.com:BRAINIACS-Group/ExaBrain.git
@@ -20,3 +20,12 @@
 	path = applications/lungs/exadg
 	url = git@github.com:temuer/exadg.git
 	branch = alveolar-model
+[submodule "applications/circulation/metric-flow-x"]
+	path = applications/circulation/metric-flow-x
+	url = git@github.com:luca-heltai/metric-flow-x.git
+[submodule "tools/dealiiX-platform"]
+	path = tools/dealiiX-platform
+	url = git@github.com:2listic/dealiiX-platform.git
+[submodule "applications/lungs/4C"]
+	path = applications/lungs/4C
+	url = git@github.com:4C-multiphysics/4C.git
