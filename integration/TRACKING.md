@@ -33,3 +33,9 @@ All coordination issues live in this repository. Status checked on 2026-10-22.
 MetricFlowX PR #28 consolidates #22/#23 into main `77cc1d7239ef015a1dcf73cb408a0cfb3ece9fe2` while preserving the earlier SI dataset, ADAN56 area and tolerance fixes. The global PR now uses this commit directly; the MetricFlowX integration patch has been removed. #17, #18 and #40 are complete.
 
 Further audit: #19 is resolved by deal.II PR #20307 (candidate `8122d681`); #21 by Polydeal PR #161 (pin `1120f5de`, no patch). Legacy setup #2 and MUMPS modernization #7 are complete; aggregate #15 is superseded by #24–#26. Complete source/distribution verification remains #34/#36.
+
+## Upstream review on 2026-10-27
+
+See [the 18-repository audit](UPSTREAM_AUDIT_2026-10-27.md) and its JSON snapshot. Current branch tips are observed revisions, not replacements for validated pins. MetricFlowX output adapters and 4C patch retirement require follow-up before new upstream code is used.
+
+Open scientific decision: [#41 — full ADAVN or reduced ADAN56?](https://github.com/dealii-X/dealii-X/issues/41). No network choice is changed by the audit.

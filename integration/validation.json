@@ -88,7 +88,8 @@
     "https://github.com/dealii-X/dealii-X/issues/35",
     "https://github.com/dealii-X/dealii-X/issues/36",
     "https://github.com/dealii-X/dealii-X/issues/37",
-    "https://github.com/dealii-X/dealii-X/issues/38"
+    "https://github.com/dealii-X/dealii-X/issues/38",
+    "https://github.com/dealii-X/dealii-X/issues/41"
   ],
   "metric_flow_x_upstream": {
     "main": "77cc1d7239ef015a1dcf73cb408a0cfb3ece9fe2",
@@ -121,5 +122,10 @@
       "https://github.com/dealii-X/dealii-X/issues/25",
       "https://github.com/dealii-X/dealii-X/issues/26"
     ]
+  },
+  "last_upstream_audit": {
+    "date": "2026-10-27",
+    "report": "integration/UPSTREAM_AUDIT_2026-10-27.md",
+    "new_builds_or_scientific_validation": false
   }
 }

@@ -349,3 +349,36 @@ by the presence of a recipe.
   PR follow-up checklist; preserved the original dirty application checkouts.
 - Verification after the audit: all 21 Python integration tests pass, the clean
   Polydeal bbox regression passes, and `./scripts/build_doc.sh` succeeds.
+
+## 2026-10-27
+
+### 18. Review all upstream repositories and open the network-scope question
+
+- Read-only audit of all 13 integration components plus PSCToolkit's five nested
+  repositories: verified configured branch tips, compared recorded pins/gitlinks,
+  reviewed relevant merged/open PRs and inspected changed source/data contracts.
+  Recorded the complete snapshot and component follow-ups in
+  `integration/upstream-audit-2026-10-27.json` and its Markdown report.
+- Updated meta-issue #16 with all 18 repository results and the distinction
+  between new upstream capabilities and previously tested integration evidence.
+  Source manifest pins, gitlinks, local application work and datasets are unchanged;
+  this audit does not claim new builds or scientific validation of current heads.
+- Flagged MetricFlowX's incompatible terminal-output change (#65/#67): the
+  current adapters need the consolidated CSV setting and boundary-ID splitting.
+  Recorded consistent initialization/IDA guards, full arterial ADAN import,
+  ADAVN wall laws/native viscoelastic initialization, hepatic import and OCI
+  tooling as upstream progress requiring integration-specific verification.
+- Recorded ImmersX's vessel-wall/MMS and moving-Dirichlet improvements, ExaDG's
+  new alveolar_hex variant/mesh prerequisite, 4C's merged oxygen/FAD fix #2360,
+  the platform's still-stacked #239/#226 changes, and PSBLAS-EXT's open fix #2.
+  No central task is closed merely because upstream code or import tooling exists.
+- Opened central question #41: full ADAVN or reduced ADAN56 for the current
+  model? Distinguished the available complete arterial import from the entire
+  arterial–venous/closed-loop model, and requested an explicit scientific scope,
+  interface/closure assumptions and controlled comparison before deciding.
+- Synchronized the tracked issue index and added the audit reference without
+  relabeling historical software/numerical checks as current-head validation.
+- Verified the 18-entry audit has complete SHA observations and no failed remote
+  queries. Re-ran the 21 Python integration tests and `./scripts/build_doc.sh`;
+  both pass. These checks cover the tracked integration/report, not new upstream
+  solver builds, full-network transients or physiological validation.

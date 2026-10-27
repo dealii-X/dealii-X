@@ -11,6 +11,15 @@ the [integration meta-issue](https://github.com/dealii-X/dealii-X/issues/16).
 The component index in `integration/TRACKING.md` maps each retained patch and
 follow-up to its issue here. Implementation review: [PR #39](https://github.com/dealii-X/dealii-X/pull/39).
 
+The 2026-10-27 upstream review covers all 13 components and five nested
+PSCToolkit repositories; its report and exact observed refs are recorded in
+`integration/UPSTREAM_AUDIT_2026-10-27.md` and the adjacent JSON snapshot.
+Observed branch tips do not replace validated source pins. In particular,
+current MetricFlowX uses a consolidated terminal CSV contract that needs adapter
+migration, and 4C's merged oxygen fix still needs adoption in the integration.
+[Open question #41](https://github.com/dealii-X/dealii-X/issues/41) discusses
+full ADAVN versus reduced ADAN56 without changing the implemented baseline.
+
 ## Current evidence and limits
 
 The CPU distribution is under development. **There is no validated complete

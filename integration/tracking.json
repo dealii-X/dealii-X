@@ -190,6 +190,14 @@
       "patch": null,
       "status": "completed",
       "resolution": "Merged into upstream main by PR #28; replay patch removed"
+    },
+    {
+      "id": "network-scope",
+      "title": "Open question: full ADAVN or reduced ADAN56 for the current multi-organ model?",
+      "target": "MetricFlowX / heart-systemic-organ scientific interface",
+      "url": "https://github.com/dealii-X/dealii-X/issues/41",
+      "patch": null,
+      "status": "open"
     }
   ],
   "pull_request": "https://github.com/dealii-X/dealii-X/pull/39",
@@ -209,5 +217,10 @@
       ]
     },
     "remaining_work": "Open component/scientific/distribution issues retain their acceptance gates"
+  },
+  "last_upstream_audit": {
+    "date": "2026-10-27",
+    "snapshot": "integration/upstream-audit-2026-10-27.json",
+    "report": "integration/UPSTREAM_AUDIT_2026-10-27.md"
   }
 }
