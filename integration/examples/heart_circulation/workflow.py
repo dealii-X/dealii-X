@@ -21,7 +21,7 @@ from dealiix.mox import cardiac_inputs, catalog, plot_pv
 RELEASE = "https://github.com/dealii-X/dealii-X/releases/download/assets/"
 REVISION = "9e013df07eeaa585bd140bbd629bfbf4d9a5bee4"
 THREAD_VARIABLES = ("OMP_NUM_THREADS", "OPENBLAS_NUM_THREADS", "MKL_NUM_THREADS",
-                    "DEAL_II_NUM_THREADS", "NUMEXPR_NUM_THREADS")
+                    "DEAL_II_NUM_THREADS", "NUMEXPR_NUM_THREADS", "VECLIB_MAXIMUM_THREADS")
 
 
 def digest(path):
@@ -33,12 +33,19 @@ def run(command, **kwargs):
     subprocess.run(list(map(str, command)), check=True, **kwargs)
 
 
+def default_ranks(model):
+    if model == "adan56":
+        return 1 if sys.platform == "darwin" else 4
+    return min(8, os.cpu_count() or 1) if sys.platform == "darwin" else 32
+
+
 def parameters(args, out, final_time):
     template = Path(__file__).with_name("parameters") / f"{args.model}.prm.in"
     return (template.read_text()
             .replace("@DATA_DIR@", str(out))
             .replace("@REFINEMENTS@", str(args.refinements))
-            .replace("@FINAL_TIME@", format(final_time, ".12g")))
+            .replace("@FINAL_TIME@", format(final_time, ".12g"))
+            .replace("@OUTPUT_INTERVAL@", format(args.output_interval, ".12g")))
 
 
 def prepare(args, source, out):
@@ -81,7 +88,7 @@ def prepare(args, source, out):
         shutil.copy2(source / "tutorials/04_adan56/network.vtk", out / "network/network.vtk")
     (out / "parameters.prm").write_text(parameters(args, out, receipt["time_end_s"]))
     plot_pv(raw_dir, out / "mox_reference")
-    receipt.update(model=args.model, ranks=32 if args.model == "adavn_full" else 4,
+    receipt.update(model=args.model, ranks=args.ranks or default_ranks(args.model),
                    threads_per_rank=1, source_revision=subprocess.check_output(
                        ["git", "-C", str(source), "rev-parse", "HEAD"], text=True).strip(),
                    executable=str(args.executable) if args.executable else None,
@@ -89,6 +96,7 @@ def prepare(args, source, out):
                    parameters_sha256=digest(out / "parameters.prm"),
                    cardiac_period_s=catalog()["cases"][args.case]["period_s"],
                    cardiac_period_basis="MOX: 0.8 s normal, 10% faster severe (0.8/1.1 s)",
+                   ida_output_interval_s=args.output_interval,
                    final_tolerances_start_s=4.8,
                    inputs_sha256={str(path.relative_to(out)): digest(path)
                                   for path in [out / "inflow.csv", out / "heart_reference.csv",
@@ -129,8 +137,8 @@ def plot(args, out):
     reference = np.interp(t, heart["time_s"], heart["pressure_Pa"])
     prescribed = np.interp(t, heart["time_s"], heart["flow_m3_s"])
     volume = np.interp(t, heart["time_s"], heart["volume_LV_mL"])
-    if len(t) < 100:
-        raise ValueError("Insufficient last-beat sampling")
+    if len(t) < 3 or np.max(np.diff(t)) > receipt["ida_output_interval_s"] * (1 + 1e-7):
+        raise ValueError("Insufficient last-beat sampling for the configured IDA output interval")
     mmhg = catalog()["pressure_conversion_Pa_per_mmHg"]
     fig, axes = plt.subplots(1, 3, figsize=(15, 4.4), constrained_layout=True)
     for pp, label in ((p, args.model + " inlet"), (reference, "MOX ascending aorta (0D)")):
@@ -220,12 +228,19 @@ def main():
     p.add_argument("--adavn-cache", type=Path, default=os.environ.get("ADAVN_SOURCE_CACHE"))
     p.add_argument("--geometry", choices=("anatomical", "metric"), default="anatomical")
     p.add_argument("--refinements", type=int, default=3)
+    p.add_argument("--ranks", type=int, help="MPI ranks recorded during preparation")
+    p.add_argument("--output-interval", type=float, default=.01,
+                   help="IDA time interval between outputs in seconds (default 0.01)")
     p.add_argument("--launcher", default=os.environ.get("MPIEXEC", "mpiexec"))
     p.add_argument("--submit", action="store_true", help="Submit execution and plotting to a dedicated Slurm job")
     p.add_argument("--partition", default="gpu")
     p.add_argument("--dependency", help="Optional Slurm dependency, e.g. afterok:12345")
     p.add_argument("--allow-local", action="store_true", help="Explicitly permit execution outside Slurm")
     args = p.parse_args()
+    if not 0 < args.output_interval < float("inf"):
+        p.error("--output-interval must be finite and positive")
+    if args.ranks is not None and args.ranks < 1:
+        p.error("--ranks must be positive")
     if args.refinements < 0:
         p.error("--refinements must be nonnegative")
     out = (args.output or ROOT / "build/integration/heart_circulation" / args.case / args.model).resolve()
@@ -262,6 +277,8 @@ def main():
         if not os.environ.get("SLURM_JOB_ID") and not args.allow_local:
             p.error("Use --submit for Slurm, or explicitly select --allow-local on a standalone machine")
         receipt = json.loads((out / "provenance.json").read_text())
+        if args.ranks is not None and args.ranks != receipt["ranks"]:
+            p.error("Prepare again with the requested --ranks before running")
         if receipt["case"] != args.case or receipt["model"] != args.model:
             raise ValueError("Prepared case/model differs from requested run")
         for name, checksum in receipt["inputs_sha256"].items():
@@ -283,31 +300,40 @@ def main():
         env["TMPDIR"] = mpi_temp
         env["OMPI_MCA_shmem_mmap_relocate_backing_file"] = "1"
         env["OMPI_MCA_shmem_mmap_backing_file_base_dir"] = mpi_temp
-        # OpenMPI on this site can expand the batch affinity mask. Choose one
-        # OS CPU per physical core from the inherited allocation and let each
-        # newly launched rank bind itself before exec, without a nested launcher.
-        cores = {}
-        for cpu in sorted(os.sched_getaffinity(0)):
-            topology = Path(f"/sys/devices/system/cpu/cpu{cpu}/topology")
-            key = ((topology / "physical_package_id").read_text().strip(),
-                   (topology / "core_id").read_text().strip())
-            cores.setdefault(key, cpu)
-        selected_cpus = list(cores.values())[:receipt["ranks"]]
-        if len(selected_cpus) != receipt["ranks"]:
-            raise ValueError("Fewer allocated physical cores than requested MPI ranks")
-        binding_dir = out / "rank_bindings"
-        binding_dir.mkdir(exist_ok=True)
-        env["DEALIIX_RANK_CPUS"] = ",".join(map(str, selected_cpus))
-        env["DEALIIX_BINDING_DIR"] = str(binding_dir)
-        runtime = dict(host=socket.gethostname(), slurm_job_id=env.get("SLURM_JOB_ID"),
-                       batch_allowed_os_cpus=sorted(os.sched_getaffinity(0)),
-                       selected_os_cpus=selected_cpus,
-                       ranks=receipt["ranks"], computational_threads_per_rank=1,
-                       mpi_binding="Each new rank binds to one allocated physical core before solver exec")
-        (out / "runtime.json").write_text(json.dumps(runtime, indent=2) + "\n")
-        with (out / "run.log").open("w") as log:
+        selected_cpus = []
+        runtime = dict(host=socket.gethostname(), platform=sys.platform,
+                       slurm_job_id=env.get("SLURM_JOB_ID"), ranks=receipt["ranks"],
+                       computational_threads_per_rank=1)
+        launch = [args.launcher, "-n", str(receipt["ranks"])]
+        if sys.platform == "darwin":
+            # macOS has no sched_setaffinity; use the matching native MPI
+            # launcher directly, including MPICH/Hydra from deal.II.app.
+            runtime["mpi_binding"] = "macOS scheduler and native MPI runtime"
+        elif sys.platform.startswith("linux"):
+            # OpenMPI may expand a Slurm affinity mask. Each new rank binds
+            # to one allocated physical core before executing the solver.
+            cores = {}
+            for cpu in sorted(os.sched_getaffinity(0)):
+                topology = Path(f"/sys/devices/system/cpu/cpu{cpu}/topology")
+                key = ((topology / "physical_package_id").read_text().strip(),
+                       (topology / "core_id").read_text().strip())
+                cores.setdefault(key, cpu)
+            selected_cpus = list(cores.values())[:receipt["ranks"]]
+            if len(selected_cpus) != receipt["ranks"]:
+                raise ValueError("Fewer allocated physical cores than requested MPI ranks")
+            binding_dir = out / "rank_bindings"
+            binding_dir.mkdir(exist_ok=True)
+            env["DEALIIX_RANK_CPUS"] = ",".join(map(str, selected_cpus))
+            env["DEALIIX_BINDING_DIR"] = str(binding_dir)
+            runtime.update(batch_allowed_os_cpus=sorted(os.sched_getaffinity(0)),
+                           selected_os_cpus=selected_cpus,
+                           mpi_binding="Each rank binds to one allocated physical core before solver exec")
             launch = [args.launcher, "--bind-to", "none", "-n", str(receipt["ranks"]),
                       sys.executable, Path(__file__).with_name("rank_entry.py")]
+        else:
+            raise ValueError("Local execution supports Linux and macOS")
+        (out / "runtime.json").write_text(json.dumps(runtime, indent=2) + "\n")
+        with (out / "run.log").open("w") as log:
             run(launch + [executable, out / "parameters.prm"],
                 cwd=out, env=env, stdout=log, stderr=subprocess.STDOUT)
         for rank, cpu in enumerate(selected_cpus):

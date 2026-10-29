@@ -1,5 +1,23 @@
 # Integration changelog
 
+## 2026-10-29 — Local macOS MPI execution
+
+- Built the pinned MetricFlowX Release solver with PETSc and the installed
+  MPICH/MUMPS toolchain. Added native macOS launching without Linux CPU-affinity
+  calls and configurable rank counts: 8 for full ADAVN, 1 for ADAN56 locally.
+- Applied the requested maximum BDF order 5 and 1,000,000 maximum IDA internal
+  steps between outputs. Removed the separate `Output time interval` setting;
+  IDA output cadence is 0.01 s, while the complete source inflow remains at
+  its original 0.001 s sampling. Output interval is configurable at preparation.
+- Preserved interrupted/failed attempts in local archives. The initial BDF-5
+  startup failed with IDA corrector convergence error -4 (not the step-work
+  limit). Newton now uses coefficient 0.1 and at most 100 iterations; ADAN56
+  also caps internal steps at 0.0001 s. Its 0–1 s serial startup check passed
+  with finite fields and positive sampled area. Full runs remain unvalidated.
+- Restarted the four-case background queue with full ADAVN first; native
+  integration is underway. Queue state and per-case failures remain visible
+  in local JSON/log files, and independent cases continue after a failure.
+
 ## 2026-10-29 — MOX normal-pressure and severe-hypertension inputs
 
 - Added the unchanged `electromechanics_SH_severe.csv` to the external assets

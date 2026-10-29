@@ -1,5 +1,6 @@
 import csv
 import importlib.util
+import json
 from pathlib import Path
 import tempfile
 import unittest
@@ -12,6 +13,36 @@ from dealiix.adan56 import split_terminal_traces
 
 
 class MoxHistories(unittest.TestCase):
+    def test_macos_launch_uses_native_mpi_without_linux_affinity(self):
+        path = Path(__file__).parents[1] / "examples/heart_circulation/workflow.py"
+        spec = importlib.util.spec_from_file_location("heart_workflow_mac", path)
+        workflow = importlib.util.module_from_spec(spec)
+        spec.loader.exec_module(workflow)
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory).resolve()
+            binary = root / "solver"
+            binary.write_text("unused test executable")
+            parameters = root / "parameters.prm"
+            parameters.write_text("synthetic parameters")
+            (root / "provenance.json").write_text(json.dumps(dict(
+                case="normal_pressure", model="adan56", ranks=4,
+                executable=str(binary), executable_sha256=workflow.digest(binary),
+                parameters_sha256=workflow.digest(parameters), inputs_sha256={})))
+            with patch.object(workflow.sys, "platform", "darwin"), patch.object(
+                workflow.sys, "argv", [str(path), "adan56", "--stage", "run",
+                                      "--allow-local", "--output", str(root),
+                                      "--launcher", "native-mpiexec"]
+            ), patch.object(workflow, "run") as launch, patch.object(
+                workflow.tempfile, "mkdtemp", return_value=str(root / "mpi")
+            ), patch.object(workflow.os, "sched_getaffinity", create=True,
+                            side_effect=AssertionError("Linux-only API")):
+                workflow.main()
+            self.assertEqual(launch.call_args.args[0],
+                             ["native-mpiexec", "-n", "4", binary, parameters])
+            runtime = json.loads((root / "runtime.json").read_text())
+            self.assertEqual(runtime["platform"], "darwin")
+            self.assertEqual(runtime["ranks"], 4)
+
     def test_consolidated_boundary_export_preserves_identity_and_flow_sign(self):
         with tempfile.TemporaryDirectory() as directory:
             root = Path(directory)
@@ -86,9 +117,16 @@ class MoxHistories(unittest.TestCase):
         from argparse import Namespace
         for model in ("adavn_full", "adan56"):
             for end in (8., 11.636):
-                text = workflow.parameters(Namespace(model=model, refinements=3), Path("/run"), end)
+                text = workflow.parameters(Namespace(model=model, refinements=3, output_interval=.01), Path("/run"), end)
                 self.assertIn(f"set Final time = {end:g}\n", text)
                 self.assertIn("set Inflow CSV period = 0", text)
+                self.assertIn("set Maximum order of BDF = 5", text)
+                self.assertIn("set Maximum number of nonlinear iterations = 100", text)
+                self.assertIn("set Nonlinear convergence coefficient = 0.1", text)
+                self.assertIn("set Maximum step size = " + ("0.0001" if model == "adan56" else "0.02"), text)
+                self.assertIn("set Maximum IDA internal steps per output = 1000000", text)
+                self.assertIn("set Time interval between each output = 0.01", text)
+                self.assertNotIn("set Output time interval", text)
                 self.assertNotIn("@", text)
 
 

@@ -38,16 +38,17 @@ export METRIC_FLOW_SOURCE="$PWD/applications/circulation/metric-flow-x"
 # DEAL_II_DIR must identify a Linux deal.II build with PETSc, METIS,
 # SUNDIALS and working parallel MUMPS support.
 cmake -S "$METRIC_FLOW_SOURCE" -B build/integration/metric-flow-mox \
-  -DCMAKE_BUILD_TYPE=Release -DDEAL_II_DIR="$DEAL_II_DIR"
+  -DCMAKE_BUILD_TYPE=Release -DMETRIC_FLOW_X_BACKEND=PETSc -DDEAL_II_DIR="$DEAL_II_DIR"
 cmake --build build/integration/metric-flow-mox --target blood_flow -j 8
 export BLOOD_FLOW_EXECUTABLE="$PWD/build/integration/metric-flow-mox/blood_flow"
 export MPIEXEC=/absolute/path/to/matching/OpenMPI/mpiexec
 ./scripts/download_assets.sh
 ```
 
-Use the MPI launcher of the solver's dependency toolchain. The scripts use
-OpenMPI and Linux CPU-affinity APIs. Source, Python, executable and output paths
-must be shared by the compute nodes. Preparation itself also works on macOS.
+Use the MPI launcher of the solver's dependency toolchain. Linux Slurm runs use
+OpenMPI and Linux CPU-affinity APIs; local macOS runs also support native
+MPICH/Hydra, with process placement managed by macOS and MPI. Source, Python,
+executable and output paths must be shared by the compute nodes when using Slurm.
 An executable can be supplied during preparation or bound at run time.
 
 ## Prepare without simulation
@@ -108,8 +109,12 @@ integration/examples/heart_circulation/run_adavn_full.sh \
   --case severe_hypertension --stage run --submit
 ```
 
-For a standalone Linux machine with enough physical cores, replace `--submit`
-with `--allow-local`, then call the same command with `--stage plot`.
+For a standalone Linux machine or Mac, replace `--submit` with `--allow-local`,
+then call the same command with `--stage plot`. During preparation, `--ranks N`
+sets the MPI process count. Defaults are 32 for full ADAVN on Linux, 8 on macOS
+(or fewer if fewer CPUs are available), and 4 for ADAN56 on Linux / 1 on macOS. One computational
+thread is used per rank. On macOS the matching launcher can be
+`/Applications/deal.II.app/Contents/Resources/Libraries/bin/mpiexec`.
 Preparation and execution on different machines require re-preparation with
 machine-local absolute paths, because parameter files record absolute I/O paths.
 
@@ -139,12 +144,27 @@ report pressure error, QAV reproduction, previous-beat pressure drift and
 integrated mass defect. Native VTU/PVTU/PVD, terminal/probe CSVs, flow-regime
 and mass diagnostics, solver log and IDA statistics remain available. The final
 VTK is selected by its recorded physical time, including a final output that
-does not lie on the regular 0.005 s cadence. Sampled fields must be finite and
+does not lie on the regular 0.01 s cadence. Sampled fields must be finite and
 area positive; prescribed inlet flow must agree within 0.1% of peak flow.
 
-Both cases retain the original solver settings: steady-network initialization,
+Both cases use steady-network initialization,
 relative tolerance 1e-5, area absolute tolerance 1e-6 of reference area,
 velocity 1e-6 m/s, capacitor pressure 0.01 Pa; 1,000-fold loose tolerances until
-4 s, tightened through 4.8 s; BDF order at most 2 and maximum step 0.02 s.
+4 s, tightened through 4.8 s; BDF order at most 5. The maximum internal step is 0.02 s for ADAVN and
+0.0001 s for ADAN56. The conservative ADAN56 cap resolves its BDF-5 startup
+without increasing the output file cadence. A local 0–1 s serial startup check
+completed with finite fields, positive sampled area and inlet-flow reproduction
+after tightening to final tolerances; it is not validation of a full case.
+`Maximum IDA internal steps per output` is 1,000,000. Newton uses a convergence
+coefficient of 0.1 and at most 100 nonlinear iterations. The previous stricter
+1e-4 / 20-iteration setting failed during the local BDF-5 startup at 0.40878 s;
+changing Newton alone still failed later. The successful local startup check
+also uses the conservative ADAN56 internal-step cap.
+Only IDA's `Time interval between each output` controls output cadence: 0.01 s
+by default, configurable during preparation with `--output-interval`. The
+separate `Output time interval` parameter is omitted (its default is zero).
+This gives 801 normal-case snapshots and 1,165 severe-case snapshots, about
+half the former 0.005 s cadence. The original 0.001 s input CSV is preserved
+for forcing; output sampling does not coarsen the inflow used by IDA.
 All last-beat comparisons use final tolerances. Mesh/time convergence and
 physiological calibration remain separate validation work.
