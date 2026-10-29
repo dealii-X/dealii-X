@@ -1,5 +1,22 @@
 # Integration changelog
 
+## 2026-10-29 — Return local cases to BDF maximum order 2
+
+- The normal eight-rank ADAVN case failed at 1.34308 s with IDA error -4;
+  this was nonlinear convergence failure, not exhaustion of the step budget.
+  The last accepted steps had already dropped from order 3 to 2 and then 1.
+- On the same local source and identical inputs, controlled one-rank replays
+  to 1.6 s completed for maximum BDF orders 2 and 5 (244 / 980 accepted steps
+  with Newton coefficient 0.1 and 100 iterations). Both Newton configurations
+  passed with BDF maximum 2. Higher order alone is therefore not proved to be
+  the cause of the eight-rank failure; MPI distribution remains another factor.
+- Applied the user's requested BDF maximum 2 to all cases, retaining IDA-only
+  0.01 s output and the 1,000,000-step work limit. ADAN56's BDF-2 startup passed
+  with the original 0.02 s internal-step cap, removing its temporary tiny cap.
+- Archived the failed normal and interrupted severe BDF-5 outputs, including
+  their exact parameters and provenance. Restarted all four local cases with
+  one process each; full trajectories remain in progress and unvalidated.
+
 ## 2026-10-29 — Local macOS MPI execution
 
 - Built the pinned MetricFlowX Release solver with PETSc and the installed

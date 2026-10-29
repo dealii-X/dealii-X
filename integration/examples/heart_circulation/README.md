@@ -150,16 +150,24 @@ area positive; prescribed inlet flow must agree within 0.1% of peak flow.
 Both cases use steady-network initialization,
 relative tolerance 1e-5, area absolute tolerance 1e-6 of reference area,
 velocity 1e-6 m/s, capacitor pressure 0.01 Pa; 1,000-fold loose tolerances until
-4 s, tightened through 4.8 s; BDF order at most 5. The maximum internal step is 0.02 s for ADAVN and
-0.0001 s for ADAN56. The conservative ADAN56 cap resolves its BDF-5 startup
-without increasing the output file cadence. A local 0–1 s serial startup check
-completed with finite fields, positive sampled area and inlet-flow reproduction
-after tightening to final tolerances; it is not validation of a full case.
-`Maximum IDA internal steps per output` is 1,000,000. Newton uses a convergence
-coefficient of 0.1 and at most 100 nonlinear iterations. The previous stricter
-1e-4 / 20-iteration setting failed during the local BDF-5 startup at 0.40878 s;
-changing Newton alone still failed later. The successful local startup check
-also uses the conservative ADAN56 internal-step cap.
+4 s, tightened through 4.8 s; BDF order at most 2 and maximum internal
+step 0.02 s for both networks. Newton uses a convergence coefficient of 0.1
+and at most 100 nonlinear iterations. `Maximum IDA internal steps per output`
+is 1,000,000.
+
+The maximum BDF order was returned to 2 after the local eight-rank normal ADAVN
+case failed with IDA corrector-convergence error -4 at 1.34308 s. The last
+accepted step was already order 1, after earlier order reductions. Serial
+controlled replays of the same current source and inputs reached 1.6 s with
+both maximum orders 2 and 5, requiring 244 versus 980 accepted steps with the
+same Newton controls. Therefore higher order alone is not established as the
+cause of the parallel failure. The BDF-2 replay also passed with the legacy
+Newton controls. ADAN56 passed a 0–1 s BDF-2 check with its original 0.02 s
+internal-step cap, so the temporary BDF-5 cap of 0.0001 s was removed.
+These are bounded startup checks, not full physiological validation. The local
+retry campaign uses `--ranks 1` for both networks; interrupted BDF-5 outputs
+remain archived beside the restarted cases.
+
 Only IDA's `Time interval between each output` controls output cadence: 0.01 s
 by default, configurable during preparation with `--output-interval`. The
 separate `Output time interval` parameter is omitted (its default is zero).
