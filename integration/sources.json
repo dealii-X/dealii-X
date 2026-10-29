@@ -48,7 +48,7 @@
         "PETSc"
       ],
       "checkout_sha": "9e013df07eeaa585bd140bbd629bfbf4d9a5bee4",
-      "validation": "MOX input preparation only; simulation not run",
+      "validation": "macOS Release PETSc/MPICH: four BDF2 MOX runs completed; inlet-flow and final VTK finite/positive-area checks passed; physiological calibration and convergence studies pending",
       "data_status": "group-case-required",
       "working_tree_dirty": false,
       "candidate_sha": "9e013df07eeaa585bd140bbd629bfbf4d9a5bee4",

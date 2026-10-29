@@ -176,3 +176,36 @@ half the former 0.005 s cadence. The original 0.001 s input CSV is preserved
 for forcing; output sampling does not coarsen the inflow used by IDA.
 All last-beat comparisons use final tolerances. Mesh/time convergence and
 physiological calibration remain separate validation work.
+
+
+## Compare completed results with the MOX figures
+
+After all four cases finish, generate the combined plots locally:
+
+```bash
+"$PYTHON" integration/examples/heart_circulation/compare_mox.py \
+  --assets "$PWD/assets" \
+  --results "$PWD/build/integration/heart_circulation" \
+  --output "$PWD/build/integration/mox_comparison"
+```
+
+The script verifies the MOX input hashes, prepared parameter hashes, full native
+inlet coverage and pressure RMSE against the per-case reports. It writes PNG,
+vector PDF/SVG, compact last-beat CSVs, `pressure_summary.csv` and
+`comparison_report.json`. No solver is launched and no figure is uploaded to
+the dataset release.
+
+`systemic_comparison` overlays MOX, full ADAVN and ADAN56 aortic pressure and
+inlet flow. `aortic_pressure_LV_volume` distinguishes the supplied ventricular
+PV reference from aortic pressure against the shared MOX ventricular volume.
+`venous_return_comparison` uses the full ADAVN sum of IVC, SVC and coronary-sinus
+central-drain flows, with IDs derived from network provenance and mapping;
+internal peripheral links are never summed as external venous return.
+
+The two `circulation_<case>` figures retain the supplied MOX four-panel layout.
+Only the systemic-flow panel includes 1D predictions; cardiac and pulmonary
+panels remain explicitly labelled MOX references. `mox_reference/` contains the
+four-chamber baseline/severe PV comparison reconstructed from the unchanged
+cardiac CSVs. Analysis uses the nominal last-beat windows recorded in provenance,
+without pressure offsets, fitted phase shifts, inflow clipping or calibration.
+ADAN56 has no venous network and neither 1D model predicts new cardiac PV loops.

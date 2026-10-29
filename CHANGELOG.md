@@ -1,5 +1,21 @@
 # Integration changelog
 
+## 2026-10-29 — Completed cases and local MOX comparison figures
+
+- All four BDF-2 runs completed their supplied histories (8 s normal,
+  11.636 s severe), followed by the native per-case output checks and plots.
+- Added combined local comparisons of MOX, full ADAVN and ADAN56, using the
+  correct final beat for each case. Distinguish predicted aortic pressure
+  from supplied cardiac PV reference data and retain the MOX circulation
+  panel layout with explicit reference/prediction labels.
+- Full ADAVN systemic venous return sums only its three mapped central drains.
+  Added reproducible figure exports, compact plotted-data CSVs, source/output
+  hashes and pressure summaries; generated images remain outside Git/dataset.
+- Recomputed pressure errors agree with the completed-run reports. Inlet-flow
+  reproduction passes the existing acceptance check, while pressure agreement,
+  especially in the severe case, still requires model/closure calibration.
+  No model parameters were fitted or simulations rerun for these figures.
+
 ## 2026-10-29 — Return local cases to BDF maximum order 2
 
 - The normal eight-rank ADAVN case failed at 1.34308 s with IDA error -4;

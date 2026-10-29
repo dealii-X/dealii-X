@@ -26,11 +26,12 @@ def verified_file(directory, name):
     return path
 
 
-def read_history(path):
+def read_history(path, extra_fields=()):
     import numpy as np
     fields = ["time", "QAV", "pressure_AA", "pARSYS"]
     fields += [name for chamber, _ in CHAMBERS
                for name in (f"volume_{chamber}", f"pressure_{chamber}")]
+    fields += list(extra_fields)
     with Path(path).open() as stream:
         rows = list(csv.DictReader(line for line in stream if line.strip()))
     values = np.array([[float(row[key]) for key in fields] for row in rows])
@@ -148,7 +149,8 @@ def plot_pv(directory, output):
         axis.tick_params(labelsize=13)
     report["reference_image_name"] = catalog()["reference_image"]
     report["reference_image_in_dataset"] = False
-    fig.subplots_adjust(hspace=.62, wspace=.3, top=.94, bottom=.09)
+    fig.suptitle("MOX four-chamber PV loops — supplied reference data", fontsize=16, y=.99)
+    fig.subplots_adjust(hspace=.62, wspace=.3, top=.90, bottom=.09)
     fig.legend(*axes[0, 0].get_legend_handles_labels(), loc="center",
                bbox_to_anchor=(.52, .505), frameon=True)
     for extension in ("png", "pdf", "svg"):
