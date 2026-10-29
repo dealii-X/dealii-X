@@ -1,0 +1,26 @@
+services:
+  contracts:
+    build:
+      context: ..
+      dockerfile: integration/containers/Dockerfile
+      target: contracts
+    image: dealiix/contracts:integration-v1
+    user: "${DEALIIX_UID:-1000}:${DEALIIX_GID:-1000}"
+    volumes:
+      - "${DEALIIX_WORKDIR:-../build/integration/work}:/work"
+  compute:
+    profiles: [complete]
+    image: "${DEALIIX_IMAGE:-dealiix/complete:integration-v1}"
+    command: [sleep, infinity]
+    user: "${DEALIIX_UID:-1000}:${DEALIIX_GID:-1000}"
+    volumes:
+      - "${DEALIIX_WORKDIR:-../build/integration/work}:/work"
+  visualizer:
+    profiles: [visualizer]
+    user: "${DEALIIX_UID:-1000}:${DEALIIX_GID:-1000}"
+    build:
+      context: ../build/integration/candidates/visualizer
+    image: dealiix/visualizer:integration-v1
+    ports: ["127.0.0.1:8008:8080"]
+    volumes:
+      - "${DEALIIX_WORKDIR:-../build/integration/work}:/deploy/data"

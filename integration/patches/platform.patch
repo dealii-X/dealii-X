@@ -1,0 +1,577 @@
+diff --git a/electron/utils/localCoralRuns.ts b/electron/utils/localCoralRuns.ts
+index e0de420..1375819 100644
+--- a/electron/utils/localCoralRuns.ts
++++ b/electron/utils/localCoralRuns.ts
+@@ -7,6 +7,8 @@ import type { ParameterTree } from '../../src/lib/types/parameterTypes.js'
+ import { buildLocalMpiArgs } from '../../src/lib/utils/mpiLauncher.js'
+ import type { MpiLauncherSettings } from '../../src/lib/types/settingsTypes.js'
+ 
++import type { StageRuntime } from '../../src/lib/types/pipelineTypes.js'
++
+ const LOCAL_RUNS_KEY = 'localRuns'
+ 
+ export interface LocalRun {
+@@ -19,6 +21,7 @@ export interface LocalRun {
+ }
+ 
+ interface CoralRunPayload {
++  integration?: StageRuntime
+   coralBinaryPath: string
+   coralPluginPath: string
+   /** Per-run directory for graph, log, and node-status files; Coral runs in it. */
+@@ -29,6 +32,7 @@ interface CoralRunPayload {
+ }
+ 
+ interface ExecutableRunPayload {
++  integration?: StageRuntime
+   executablePath: string
+   /** Per-run directory for parameters and logs; the executable runs in it. */
+   runDirectory: string
+@@ -128,6 +132,7 @@ export const startLocalCoralRun = async ({
+   graphPayload,
+   internalJobId,
+   mpi,
++  integration,
+ }: CoralRunPayload): Promise<{ jobId: string; runDirectory: string }> => {
+   const jobId = String(internalJobId)
+   const graphPath = path.join(runDirectory, `graph-${jobId}.json`)
+@@ -152,7 +157,7 @@ export const startLocalCoralRun = async ({
+     '--touch-dir',
+     touchDir,
+   ]
+-  const invocation = mpi
++  let invocation = mpi
+     ? buildLocalMpiArgs(
+         mpi.launcher,
+         mpi.processes,
+@@ -162,8 +167,17 @@ export const startLocalCoralRun = async ({
+     : { command: coralBinaryPath, args: executableArgs }
+ 
+   const stdoutStream = fs.createWriteStream(logPath, { flags: 'a' })
++  if (integration) {
++    const specPath = path.join(runDirectory, 'stage-integration.json')
++    await fs.promises.writeFile(specPath, JSON.stringify(integration, null, 2))
++    invocation = {
++      command: integration.profile?.pythonPath || 'python3',
++      args: ['-m', 'dealiix.stage', specPath, '--', invocation.command, ...invocation.args],
++    }
++  }
+   const child = spawn(invocation.command, invocation.args, {
+     cwd: runDirectory,
++    env: { ...process.env, ...integration?.profile?.environment },
+     stdio: ['ignore', 'pipe', 'pipe'],
+   })
+ 
+@@ -208,6 +222,7 @@ export const startLocalExecutableRun = async ({
+   parametersFileName,
+   internalJobId,
+   mpi,
++  integration,
+ }: ExecutableRunPayload): Promise<{
+   jobId: string
+   runDirectory: string
+@@ -230,13 +245,22 @@ export const startLocalExecutableRun = async ({
+   // step-70) read their dimension from the params path, so the run directory
+   // must stay out of argv. Matches the remote batch script.
+   const stdoutStream = fs.createWriteStream(logPath, { flags: 'a' })
+-  const invocation = mpi
++  let invocation = mpi
+     ? buildLocalMpiArgs(mpi.launcher, mpi.processes, executablePath, [
+         parametersName,
+       ])
+     : { command: executablePath, args: [parametersName] }
++  if (integration) {
++    const specPath = path.join(runDirectory, 'stage-integration.json')
++    await fs.promises.writeFile(specPath, JSON.stringify(integration, null, 2))
++    invocation = {
++      command: integration.profile?.pythonPath || 'python3',
++      args: ['-m', 'dealiix.stage', specPath, '--', invocation.command, ...invocation.args],
++    }
++  }
+   const child = spawn(invocation.command, invocation.args, {
+     cwd: runDirectory,
++    env: { ...process.env, ...integration?.profile?.environment },
+     stdio: ['ignore', 'pipe', 'pipe'],
+   })
+ 
+diff --git a/src/lib/components/StageArtifactsEditor.svelte b/src/lib/components/StageArtifactsEditor.svelte
+new file mode 100644
+index 0000000..244cff6
+--- /dev/null
++++ b/src/lib/components/StageArtifactsEditor.svelte
+@@ -0,0 +1,35 @@
++<script lang="ts">
++  import { pipelineState } from '../stores/pipeline.svelte'
++  import type { StageIntegration } from '../types/pipelineTypes'
++  let { id, data }: { id: string; data: StageIntegration } = $props()
++  let error = $state('')
++  const update = (key: 'profile' | 'inputs' | 'outputs', text: string) => {
++    try {
++      const value = text.trim() ? JSON.parse(text) : undefined
++      if (value && (typeof value !== 'object' || Array.isArray(value)))
++        throw new Error('Enter a JSON object')
++      pipelineState.updateStageData(id, { [key]: value })
++      error = ''
++    } catch (e) { error = String(e) }
++  }
++</script>
++
++<details>
++  <summary>Backend and data exchange</summary>
++  <p>Leave empty to use the location defaults. Input paths are relative to this stage.</p>
++  {#each ['profile', 'inputs', 'outputs'] as key}
++    <label>
++      {key === 'profile' ? 'Execution profile' : key === 'inputs' ? 'Input bindings' : 'Named outputs'}
++      <textarea class="nodrag nowheel" aria-label={key}
++        value={JSON.stringify(data[key as keyof StageIntegration], null, 2) || ''}
++        onchange={(e) => update(key as 'profile' | 'inputs' | 'outputs', e.currentTarget.value)}></textarea>
++    </label>
++  {/each}
++  {#if error}<p role="alert">{error}</p>{/if}
++</details>
++
++<style>
++  textarea { width: 100%; min-height: 4em; box-sizing: border-box; }
++  label { display: block; margin-top: .5em; }
++  p { font-size: .8em; }
++</style>
+diff --git a/src/lib/components/nodes/CoralStageNode.svelte b/src/lib/components/nodes/CoralStageNode.svelte
+index 23ed216..47a102a 100644
+--- a/src/lib/components/nodes/CoralStageNode.svelte
++++ b/src/lib/components/nodes/CoralStageNode.svelte
+@@ -5,6 +5,7 @@
+ </script>
+ 
+ <script lang="ts">
++  import StageArtifactsEditor from '../StageArtifactsEditor.svelte'
+   import { Handle, Position, type NodeProps } from '@xyflow/svelte'
+   import { pipelineState } from '../../stores/pipeline.svelte'
+   import { executionSelectionState } from '../../stores/executionSelection.svelte'
+@@ -102,6 +103,8 @@
+   {/if}
+ </div>
+ 
++<StageArtifactsEditor {id} {data} />
++
+ <Handle type="source" position={Position.Right} />
+ 
+ <style>
+diff --git a/src/lib/components/nodes/ExecutableStageNode.svelte b/src/lib/components/nodes/ExecutableStageNode.svelte
+index a4b89ae..9991964 100644
+--- a/src/lib/components/nodes/ExecutableStageNode.svelte
++++ b/src/lib/components/nodes/ExecutableStageNode.svelte
+@@ -8,6 +8,7 @@
+ </script>
+ 
+ <script lang="ts">
++  import StageArtifactsEditor from '../StageArtifactsEditor.svelte'
+   import { Handle, Position, type NodeProps } from '@xyflow/svelte'
+   import { pipelineState } from '../../stores/pipeline.svelte'
+   import { executionSelectionState } from '../../stores/executionSelection.svelte'
+@@ -161,6 +162,8 @@
+   {/if}
+ </div>
+ 
++<StageArtifactsEditor {id} {data} />
++
+ <Handle type="source" position={Position.Right} />
+ 
+ <style>
+diff --git a/src/lib/orchestration/localStages.test.ts b/src/lib/orchestration/localStages.test.ts
+index 3bde0ee..9006117 100644
+--- a/src/lib/orchestration/localStages.test.ts
++++ b/src/lib/orchestration/localStages.test.ts
+@@ -87,6 +87,16 @@ beforeEach(() => {
+ })
+ 
+ describe('prepareStageLocal', () => {
++  it('uses a stage-specific Coral install and passes execution-time artifact metadata', async () => {
++    existingFiles.push('/other/coral', '/other/plugin.so')
++    const stage = coralStage('override')
++    stage.profile = { coralBinaryPath: '/other/coral', coralPluginPath: '/other/plugin.so' }
++    stage.runtime = { pipelineDirectory: '/p', stageDirectory: '/p/stage-override', profile: stage.profile }
++    const prepared = await prepareStageLocal(stage, '/p/stage-override')
++    expect(prepared.payload).toMatchObject({ coralBinaryPath: '/other/coral',
++      coralPluginPath: '/other/plugin.so', integration: stage.runtime })
++  })
++
+   it('gives stages submitted one after another distinct, recorded keys', async () => {
+     const a = await prepareStageLocal(coralStage('a'), '/p/stage-a')
+     const b = await prepareStageLocal(coralStage('b'), '/p/stage-b')
+diff --git a/src/lib/orchestration/localStages.ts b/src/lib/orchestration/localStages.ts
+index 9a5cbb5..abc419f 100644
+--- a/src/lib/orchestration/localStages.ts
++++ b/src/lib/orchestration/localStages.ts
+@@ -44,7 +44,8 @@ export const prepareStageLocal = async (
+   let channel: PreparedLocalStage['channel']
+   let payload: object
+   if (stage.type === 'coralStage') {
+-    const { coralBinaryPath, coralPluginPath } = settingsState.local
++    const coralBinaryPath = stage.profile?.coralBinaryPath || settingsState.local.coralBinaryPath
++    const coralPluginPath = stage.profile?.coralPluginPath || settingsState.local.coralPluginPath
+     await assertLocalFilesExist(stage.name, [coralBinaryPath, coralPluginPath])
+     backendKind = 'coral'
+     channel = 'start-local-coral-run'
+@@ -93,7 +94,7 @@ export const prepareStageLocal = async (
+   return {
+     key: String(internalJobId),
+     channel,
+-    payload: { ...payload, internalJobId },
++    payload: { ...payload, internalJobId, integration: stage.runtime },
+   }
+ }
+ 
+diff --git a/src/lib/orchestration/pipelineOrchestrator.ts b/src/lib/orchestration/pipelineOrchestrator.ts
+index ec00587..d7ee7dc 100644
+--- a/src/lib/orchestration/pipelineOrchestrator.ts
++++ b/src/lib/orchestration/pipelineOrchestrator.ts
+@@ -12,6 +12,7 @@
+  * submission.
+  */
+ 
++import { integratePipeline, withRuntime } from './stageArtifacts'
+ import { JobStatus } from '../types/jobTypes'
+ import { resolveExecutionOrder, parentsOf } from './executionOrder'
+ import { schedulerFor, type StageScheduler } from './stageScheduler'
+@@ -71,6 +72,7 @@ export const runPipelineOnScheduler = async (
+   }
+ 
+   // Throws PipelineCycleError if the DAG is cyclic.
++  pipeline = integratePipeline(pipeline)
+   const order = resolveExecutionOrder(pipeline)
+   // Absolute pipeline dir: stage subdirs recorded via jobIdMapState must be
+   // absolute so later reads (getOutFileContent / getNodesExecutionStatus)
+@@ -95,7 +97,7 @@ export const runPipelineOnScheduler = async (
+ 
+     jobIdByStage.set(
+       stage.id,
+-      await scheduler.submitStage(stage, stageDir, parentJobIds)
++      await scheduler.submitStage(withRuntime(stage, pipeline, pipelineDir, stageDir), stageDir, parentJobIds)
+     )
+   }
+ 
+diff --git a/src/lib/orchestration/stageArtifacts.test.ts b/src/lib/orchestration/stageArtifacts.test.ts
+new file mode 100644
+index 0000000..98c5fe6
+--- /dev/null
++++ b/src/lib/orchestration/stageArtifacts.test.ts
+@@ -0,0 +1,50 @@
++import { describe, expect, it } from 'vitest'
++import { integratePipeline, withRuntime } from './stageArtifacts'
++import { buildSbatchScript } from '../utils/sbatchScript'
++import { resolveExecutionOrder } from './executionOrder'
++import type { Pipeline, CoralPipelineStage } from '../types/pipelineTypes'
++
++const stage = (id: string): CoralPipelineStage => ({
++  id, name: id, type: 'coralStage', position: { x: 0, y: 0 }, graph: {},
++  config: { useMpi: false, nodes: 1, tasksPerNode: 1, timeLimit: '00:05:00' },
++})
++const example = (): Pipeline => ({ nodes: [
++  { ...stage('a'), outputs: { waveform: { path: 'series/manifest.json', kind: 'timeseries' } } },
++  { ...stage('b'), profile: { coralPluginPath: '/plugins/b.so' },
++    inputs: { inlet: { stage: 'a', output: 'waveform', destination: 'inputs/inlet' } } },
++], edges: [] })
++
++describe('stage artifacts', () => {
++  it('makes data bindings impose ordering and resolves execution-time paths', () => {
++    const pipeline = integratePipeline(example())
++    expect(pipeline.edges).toEqual([{ source: 'a', target: 'b' }])
++    const stage = withRuntime(pipeline.nodes[1], pipeline, '/run', '/run/stage-b')
++    expect(stage.runtime?.inputs?.inlet.producerDirectory).toBe('stage-a')
++    expect(stage.runtime?.profile?.coralPluginPath).toBe('/plugins/b.so')
++  })
++  it('rejects missing outputs, escaping paths and dependency cycles', () => {
++    const pipeline = example()
++    pipeline.nodes[1].inputs!.inlet.output = 'absent'
++    expect(() => integratePipeline(pipeline)).toThrow()
++    pipeline.nodes[1].inputs!.inlet.output = 'waveform'
++    pipeline.nodes[1].inputs!.inlet.destination = '../escape'
++    expect(() => integratePipeline(pipeline)).toThrow()
++    pipeline.nodes[1].inputs!.inlet.destination = 'input'
++    pipeline.edges = [{ source: 'b', target: 'a' }]
++    expect(() => resolveExecutionOrder(integratePipeline(pipeline))).toThrow()
++  })
++  it('preserves old stages without requiring the integration runtime', () => {
++    const pipeline = { nodes: [stage('old')], edges: [] }
++    expect(withRuntime(pipeline.nodes[0], pipeline, '/run', '/run/stage-old')).toBe(pipeline.nodes[0])
++  })
++  it('runs one serial artifact wrapper around the MPI solver command', () => {
++    const script = buildSbatchScript({ jobName: 'test', runDirectory: '/run/b',
++      timeLimit: '00:05:00', command: 'coral -p b.so run graph.json',
++      mpi: { nodes: 1, tasksPerNode: 2, launcher: { kind: 'mpirun' } },
++      integration: { pipelineDirectory: '/run', stageDirectory: '/run/b',
++        profile: { environment: { LABEL: "it's literal" } } } })
++    expect(script).toContain("python3' -m dealiix.stage")
++    expect(script).toContain('-- mpirun coral -p b.so run graph.json')
++    expect(script).toContain("export LABEL='it'\\''s literal'")
++  })
++})
+diff --git a/src/lib/orchestration/stageArtifacts.ts b/src/lib/orchestration/stageArtifacts.ts
+new file mode 100644
+index 0000000..584819a
+--- /dev/null
++++ b/src/lib/orchestration/stageArtifacts.ts
+@@ -0,0 +1,43 @@
++import type { Pipeline, PipelineStage, StageRuntime } from '../types/pipelineTypes'
++
++const relative = (value: string): boolean =>
++  !!value && !value.startsWith('/') && !value.includes('\\') &&
++  value.split('/').every((part) => part !== '..' && part !== '.' && part !== '')
++
++/** Artifact dependencies also imply ordering, including when no arrow was drawn. */
++export const integratePipeline = (pipeline: Pipeline): Pipeline => {
++  const stages = new Map(pipeline.nodes.map((stage) => [stage.id, stage]))
++  if (stages.size !== pipeline.nodes.length) throw new Error('Duplicate stage ids')
++  const edges = [...pipeline.edges]
++  for (const stage of pipeline.nodes) {
++    if (!/^[A-Za-z0-9_-]+$/.test(stage.id)) throw new Error('Invalid stage id')
++    for (const output of Object.values(stage.outputs || {})) {
++      if (!relative(output.path) || !['file', 'timeseries'].includes(output.kind))
++        throw new Error('Invalid output artifact')
++    }
++    for (const binding of Object.values(stage.inputs || {})) {
++      const producer = stages.get(binding.stage)
++      if (!producer?.outputs?.[binding.output]) throw new Error('Unknown artifact producer/output')
++      if (!relative(binding.destination)) throw new Error('Invalid input destination')
++      if (!edges.some((edge) => edge.source === binding.stage && edge.target === stage.id))
++        edges.push({ source: binding.stage, target: stage.id })
++    }
++  }
++  return { ...pipeline, edges }
++}
++
++export const withRuntime = (
++  stage: PipelineStage, pipeline: Pipeline, pipelineDirectory: string, stageDirectory: string
++): PipelineStage => {
++  if (!pipeline.nodes.some((node) => node.profile || node.inputs || node.outputs)) return stage
++  const inputs: NonNullable<StageRuntime['inputs']> = {}
++  for (const [name, binding] of Object.entries(stage.inputs || {})) {
++    const producer = pipeline.nodes.find((node) => node.id === binding.stage)!
++    inputs[name] = { ...binding, producerDirectory: `stage-${binding.stage}`,
++      artifact: producer.outputs![binding.output] }
++  }
++  return { ...stage, runtime: {
++    pipelineDirectory, stageDirectory, profile: stage.profile,
++    inputs, outputs: stage.outputs,
++  } }
++}
+diff --git a/src/lib/orchestration/stageScheduler.ts b/src/lib/orchestration/stageScheduler.ts
+index d768313..8bc2dbf 100644
+--- a/src/lib/orchestration/stageScheduler.ts
++++ b/src/lib/orchestration/stageScheduler.ts
+@@ -75,6 +75,7 @@ export const remoteScheduler = (): StageScheduler => ({
+         graph: stage.graph as object,
+         stageDir,
+         config: stage.config,
++        integration: stage.runtime,
+         dependencyJobIds: parentJobIds,
+       })
+     } else if (stage.type === 'executableStage') {
+@@ -86,6 +87,7 @@ export const remoteScheduler = (): StageScheduler => ({
+         parameters: stage.parameters,
+         stageDir,
+         config: stage.config,
++        integration: stage.runtime,
+         dependencyJobIds: parentJobIds,
+       })
+     }
+diff --git a/src/lib/stores/pipeline.svelte.ts b/src/lib/stores/pipeline.svelte.ts
+index 39a9f6a..1b1116a 100644
+--- a/src/lib/stores/pipeline.svelte.ts
++++ b/src/lib/stores/pipeline.svelte.ts
+@@ -1,3 +1,5 @@
++import { integratePipeline } from '../orchestration/stageArtifacts'
++import { resolveExecutionOrder } from '../orchestration/executionOrder'
+ /**
+  * Transient store for the pipeline editor: holds the pipeline as xyflow nodes/edges
+  * (one node per stage, one edge per ordering dependency). Mirrors the get/set shape
+@@ -246,6 +248,8 @@ export const pipelineState = {
+   } {
+     const issues: string[] = []
+     const { nodes: stages } = this.toPipeline()
++    try { resolveExecutionOrder(integratePipeline(this.toPipeline())) }
++    catch (error) { issues.push(String(error)) }
+     if (stages.length === 0) issues.push('Add at least one stage')
+ 
+     for (const stage of stages) {
+diff --git a/src/lib/types/pipelineTypes.ts b/src/lib/types/pipelineTypes.ts
+index c297a46..8f78e9d 100644
+--- a/src/lib/types/pipelineTypes.ts
++++ b/src/lib/types/pipelineTypes.ts
+@@ -24,8 +24,30 @@
+ import type { CoralJobConfig, ExecutableJobConfig } from './jobConfigTypes'
+ import type { ParameterTree } from './parameterTypes'
+ 
++export type Artifact = { path: string; kind: 'file' | 'timeseries' }
++export type ArtifactInput = {
++  stage: string; output: string; destination: string
++  anatomy?: string; channels?: string[]; timeInterval?: [number, number]
++}
++export type StageProfile = {
++  coralBinaryPath?: string; coralPluginPath?: string; pythonPath?: string
++  environment?: Record<string, string>; image?: string; sourceRevisions?: Record<string, string>
++}
++export type StageIntegration = {
++  profile?: StageProfile
++  inputs?: Record<string, ArtifactInput>
++  outputs?: Record<string, Artifact>
++  runtime?: StageRuntime
++}
++export type StageRuntime = {
++  pipelineDirectory: string; stageDirectory: string; profile?: StageProfile
++  inputs?: Record<string, ArtifactInput & { producerDirectory: string; artifact: Artifact }>
++  outputs?: Record<string, Artifact>
++}
++
++
+ /** A pipeline stage that runs a whole CORAL graph. */
+-export type CoralPipelineStage = {
++export type CoralPipelineStage = StageIntegration & {
+   id: string
+   type: 'coralStage'
+   position: { x: number; y: number }
+@@ -36,7 +58,7 @@ export type CoralPipelineStage = {
+ }
+ 
+ /** A pipeline stage that runs a standalone executable with a parameters file. */
+-export type ExecutablePipelineStage = {
++export type ExecutablePipelineStage = StageIntegration & {
+   id: string
+   type: 'executableStage'
+   position: { x: number; y: number }
+@@ -52,8 +74,8 @@ export type PipelineStage = CoralPipelineStage | ExecutablePipelineStage
+ 
+ /** What a scheduler launches: a pipeline stage, or a single run shaped like one. */
+ export type StageJob =
+-  | Pick<CoralPipelineStage, 'type' | 'name' | 'graph' | 'config'>
+-  | Pick<ExecutablePipelineStage, 'type' | 'name' | 'parameters' | 'config'>
++  | Pick<CoralPipelineStage, 'type' | 'name' | 'graph' | 'config' | keyof StageIntegration>
++  | Pick<ExecutablePipelineStage, 'type' | 'name' | 'parameters' | 'config' | keyof StageIntegration>
+ 
+ /** Stage fields stored on a canvas node's `data` (the stage minus `id`/`type`/`position`, which live on the xyflow node). */
+ export type CoralStageData = Omit<
+diff --git a/src/lib/utils/sbatchScript.ts b/src/lib/utils/sbatchScript.ts
+index 33a1281..7eb3386 100644
+--- a/src/lib/utils/sbatchScript.ts
++++ b/src/lib/utils/sbatchScript.ts
+@@ -1,3 +1,5 @@
++import type { StageRuntime } from '../types/pipelineTypes'
++import { shellEscape } from './shellEscape'
+ /**
+  * Construction of the sbatch scripts submitted to Slurm. One builder covers
+  * every case — coral or executable, MPI or serial — since with a launcher
+@@ -15,6 +17,7 @@ export type SbatchMpiResources = {
+ }
+ 
+ export type SbatchScriptOptions = {
++  integration?: StageRuntime
+   /** Value of `#SBATCH --job-name`. */
+   jobName: string
+   /** Directory the job chdir's into and writes its `slurm-%j.out` to. */
+@@ -38,6 +41,7 @@ export const buildSbatchScript = ({
+   timeLimit,
+   command,
+   mpi,
++  integration,
+ }: SbatchScriptOptions): string => {
+   const directives = [
+     `#SBATCH --chdir=${runDirectory}`,
+@@ -55,9 +59,18 @@ export const buildSbatchScript = ({
+ 
+   const launcher = mpi ? `${buildMpiLauncherCommand(mpi.launcher)} ` : ''
+ 
++  let invocation = `${launcher}${command}`
++  let environment = ''
++  if (integration) {
++    environment = Object.entries(integration.profile?.environment || {}).map(([name, value]) => {
++      if (!/^[A-Za-z_][A-Za-z0-9_]*$/.test(name)) throw new Error('Invalid environment name')
++      return `export ${name}=${shellEscape(value)}`
++    }).join('\n')
++    invocation = `${shellEscape(integration.profile?.pythonPath || 'python3')} -m dealiix.stage ${shellEscape(`${runDirectory}/stage-integration.json`)} -- ${invocation}`
++  }
+   return `#!/bin/bash
+ ${directives.join('\n')}
+ 
+-${launcher}${command}
++${environment ? environment + '\n' : ''}${invocation}
+ `
+ }
+diff --git a/src/lib/utils/sshMessages.test.ts b/src/lib/utils/sshMessages.test.ts
+index 14de870..9c3e4b8 100644
+--- a/src/lib/utils/sshMessages.test.ts
++++ b/src/lib/utils/sshMessages.test.ts
+@@ -168,7 +168,7 @@ describe('submitCoralStageRemote batch script', () => {
+ 
+     const { coralBinaryPath, coralPluginPath } = settingsState.remote
+     expect(uploads['/data/stage-p0/job.sh']).toContain(
+-      `${coralBinaryPath} --plugin ${coralPluginPath} run /data/stage-p0/graph.json`
++      `'${coralBinaryPath}' --plugin '${coralPluginPath}' run '/data/stage-p0/graph.json'`
+     )
+   })
+ })
+diff --git a/src/lib/utils/sshMessages.ts b/src/lib/utils/sshMessages.ts
+index a1d0ab5..c456bf1 100644
+--- a/src/lib/utils/sshMessages.ts
++++ b/src/lib/utils/sshMessages.ts
+@@ -1,3 +1,4 @@
++import type { StageRuntime } from '../types/pipelineTypes'
+ /**
+  * SSH and Slurm primitives for job execution: building and uploading a stage's
+  * graph or parameters file and sbatch script, submitting it, and polling job
+@@ -79,13 +80,17 @@ export const submitCoralStageRemote = async ({
+   stageDir,
+   config,
+   dependencyJobIds,
++  integration,
+ }: {
+   graph: object
+   stageDir: string
+   config: CoralJobConfig
+   dependencyJobIds: string[]
++  integration?: StageRuntime
+ }): Promise<string> => {
+   const useMpi = config.useMpi
++  const coralBinaryPath = integration?.profile?.coralBinaryPath || settingsState.remote.coralBinaryPath
++  const coralPluginPath = integration?.profile?.coralPluginPath || settingsState.remote.coralPluginPath
+   const internalJobId = jobIdMapState.getNextKey()
+ 
+   await ensureRemoteDir(stageDir)
+@@ -95,11 +100,13 @@ export const submitCoralStageRemote = async ({
+     settingsState.remote.workingDirectory
+   )
+   await uploadFileSsh(JSON.stringify(resolvedGraph), `${stageDir}/graph.json`)
++  if (integration) await uploadFileSsh(JSON.stringify(integration), `${stageDir}/stage-integration.json`)
+   const batchScript = buildSbatchScript({
++    integration,
+     jobName: `coral-${internalJobId}`,
+     runDirectory: stageDir,
+     timeLimit: config.timeLimit,
+-    command: `${settingsState.remote.coralBinaryPath} --plugin ${settingsState.remote.coralPluginPath} run ${stageDir}/graph.json --touch-dir nodes-exec-status/${internalJobId}`,
++    command: `${shellEscape(coralBinaryPath)} --plugin ${shellEscape(coralPluginPath)} run ${shellEscape(`${stageDir}/graph.json`)} --touch-dir ${shellEscape(`nodes-exec-status/${internalJobId}`)}`,
+     mpi: useMpi ? remoteMpiResources(config) : null,
+   })
+   await uploadFileSsh(batchScript, `${stageDir}/job.sh`)
+@@ -134,11 +141,13 @@ export const submitExecutableStageRemote = async ({
+   stageDir,
+   config,
+   dependencyJobIds,
++  integration,
+ }: {
+   parameters: ParameterTree
+   stageDir: string
+   config: ExecutableJobConfig
+   dependencyJobIds: string[]
++  integration?: StageRuntime
+ }): Promise<string> => {
+   const internalJobId = jobIdMapState.getNextKey()
+   const { parametersFileName } = config
+@@ -155,7 +164,9 @@ export const submitExecutableStageRemote = async ({
+   )
+   // Bare filename, not a path: some deal.II programs read their dimension from
+   // the params path, so the volatile stage directory must stay out of argv.
++  if (integration) await uploadFileSsh(JSON.stringify(integration), `${stageDir}/stage-integration.json`)
+   const batchScript = buildSbatchScript({
++    integration,
+     jobName: `executable-${internalJobId}`,
+     runDirectory: stageDir,
+     timeLimit: config.timeLimit,

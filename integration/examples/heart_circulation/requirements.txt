@@ -1,0 +1,3 @@
+numpy>=2.0
+matplotlib>=3.7
+meshio>=5.3
