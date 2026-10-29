@@ -72,6 +72,15 @@ class ReleaseAssets(unittest.TestCase):
         with self.assertRaises(ValueError): self.download()
         self.assertFalse((self.root / "outside.csv").exists())
 
+    def test_bad_sha1_rejected_even_with_correct_sha256(self):
+        path = self.release / "assets-manifest.json"
+        manifest = json.loads(path.read_text())
+        manifest["files"][0]["sha1"] = "0" * 40
+        path.write_text(json.dumps(manifest))
+        with self.assertRaisesRegex(ValueError, "checksum"):
+            self.download()
+        self.assertFalse((self.local / "heart.csv").exists())
+
     def test_removed_assets_retained_and_package_is_reproducible(self):
         (self.source / ".private-note").write_text("do not upload")
         first = package_assets(self.source, self.release)

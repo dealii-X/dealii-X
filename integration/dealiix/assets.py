@@ -1,5 +1,6 @@
 """Fetch checksum-pinned external assets and transcribe the unchanged XLSX legend."""
 import argparse
+import hashlib
 import html
 import json
 from pathlib import Path
@@ -13,6 +14,11 @@ import zipfile
 from .sources import sha256
 
 NS = {"s": "http://schemas.openxmlformats.org/spreadsheetml/2006/main"}
+
+
+def checksums_match(path, item):
+    return sha256(path) == item["sha256"] and (
+        "sha1" not in item or hashlib.sha1(Path(path).read_bytes()).hexdigest() == item["sha1"])
 
 
 def legend_markdown(source, destination):
@@ -99,11 +105,11 @@ def download_assets(root, base_url, fetcher=fetch):
                     raise ValueError(f"Local asset changed; preserved: {name}. Move it aside before downloading.")
         # Metadata is refreshed on every call; a cached matching release needs no ZIP download.
         changed = [item for item in files if not relative_file(root, item["name"]).exists()
-                   or sha256(relative_file(root, item["name"])) != item["sha256"]]
+                   or not checksums_match(relative_file(root, item["name"]), item)]
         if changed:
             archive = work / "assets.zip"
             fetcher(base_url.rstrip("/") + "/assets.zip", archive)
-            if sha256(archive) != manifest["archive"]["sha256"]:
+            if not checksums_match(archive, manifest["archive"]):
                 raise ValueError("Release ZIP checksum mismatch; local assets preserved")
             with zipfile.ZipFile(archive) as bundle:
                 if len(bundle.namelist()) != len(names) or set(bundle.namelist()) != set(names):
@@ -116,7 +122,7 @@ def download_assets(root, base_url, fetcher=fetch):
                     extracted.parent.mkdir(parents=True, exist_ok=True)
                     with bundle.open(info) as source, extracted.open("wb") as output:
                         shutil.copyfileobj(source, output)
-                    if sha256(extracted) != item["sha256"]:
+                    if not checksums_match(extracted, item):
                         raise ValueError("Release file checksum mismatch; local assets preserved")
             for item in changed:
                 target = relative_file(root, item["name"])

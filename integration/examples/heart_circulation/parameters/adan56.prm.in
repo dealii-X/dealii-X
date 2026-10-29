@@ -1,0 +1,65 @@
+# MOX one-way coupling: QAV is prescribed, pressure_AA is comparison only.
+subsection Metric Flow Parameters
+  set Density (rho) = 1040
+  set Profile constant for friction term (xi) = 2
+  set Viscosity coefficient (mu) = 0.004
+  set Reflection coefficient at outflow boundary (Rt) = 0
+  set Tube law exponent (m) = 0.5
+end
+subsection MetricFlowSystem<1, 3>
+  set Run mode = transient
+  set Vtk file path for mesh input = @DATA_DIR@/network/network.vtk
+  set Mesh partitioning = graph
+  set Viscoelastic wall = false
+  set Initial state source = steady network
+  set Initial condition policy = native
+  set Finite element degree = 2
+  set Number of global refinement = @REFINEMENTS@
+  set Number of refinement cycles = 1
+  set Numerical flux type = HLL
+  set Outlet boundary condition type = RCR
+  set Theta (penalty parameter) = 1
+  set Theta Boundary (stability parameter) = 1
+  set Gamma (Total pressure factor) = 0.8
+  set Use Riemann Invariants = true
+  set Problem constants = 1.0
+  set Use direct solver = true
+  set Inflow CSV file = @DATA_DIR@/inflow.csv
+  set Inflow CSV period = 0
+  set Maximum IDA internal steps per output = 10000
+  set Use componentwise absolute tolerances = true
+  set Area absolute tolerance fraction = 1e-6
+  set Velocity absolute tolerance = 1e-6
+  set Capacitor pressure absolute tolerance = 0.01
+  set Output directory = @DATA_DIR@/output
+  set Output filename = adan56
+  set Output vessel CSV file = probes.csv
+  set Vessel probe IDs = 0
+  set Output terminal CSV file = terminals.csv
+  set Output time interval = 0.005
+  set Write flow regime diagnostics = true
+  set Tolerance ramp enabled = true
+  set Tolerance ramp initial relative factor = 1000
+  set Tolerance ramp initial absolute factor = 1000
+  set Tolerance ramp hold duration = 4
+  set Tolerance ramp end time = 4.8
+  set Print current statistics = true
+  set Verbosity (console depth) = 0
+  subsection IDA parameters
+    set Initial time = 0
+    set Final time = @FINAL_TIME@
+    set Time interval between each output = 0.005
+    subsection Error control
+      set Absolute error tolerance = 1e-7
+      set Relative error tolerance = 1e-5
+    end
+    subsection Running parameters
+      set Initial step size = 1e-5
+      set Maximum step size = 0.02
+      set Minimum step size = 1e-12
+      set Maximum number of nonlinear iterations = 20
+      set Nonlinear convergence coefficient = 1e-4
+      set Maximum order of BDF = 2
+    end
+  end
+end

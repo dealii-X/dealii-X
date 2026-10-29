@@ -40,7 +40,7 @@ def prepare(manifest, source, destination, final_time=8., refinements=5):
     text = text.replace("# Derived from inflow.txt using a Fourier-series fit of the supporting-data waveform",
                         "# Cardiac waveform supplied by Inflow CSV file at inlet boundary 0.")
     text = text.replace("subsection MetricFlowSystem<1, 3>",
-                        "subsection MetricFlowSystem<1, 3>\n  set Write terminal CSV files = true\n  set Inflow CSV file = inflow.csv\n  set Inflow CSV period = 0", 1)
+                        "subsection MetricFlowSystem<1, 3>\n  set Inflow CSV file = inflow.csv\n  set Inflow CSV period = 0\n  set Output terminal CSV file = terminals.csv", 1)
     write_inflow(manifest, "Q", root / "inflow.csv")
     (root / "case.prm").write_text(text)
     receipt = {"network": "ADAN56", "inlet_boundary_id": 0, "terminal_boundary_ids": list(range(1, 32)),
@@ -53,6 +53,26 @@ def prepare(manifest, source, destination, final_time=8., refinements=5):
                "periodic_repetition": False, "numerical_validation": "not-run"}
     (root / "coupling.json").write_text(json.dumps(receipt, indent=2) + "\n")
     return receipt
+
+
+def split_terminal_traces(source, destination, boundary_ids):
+    """Adapt the consolidated native boundary CSV to the existing organ DAG."""
+    destination = Path(destination)
+    destination.mkdir(parents=True, exist_ok=True)
+    rows = {boundary: [] for boundary in boundary_ids}
+    with Path(source).open() as stream:
+        reader = csv.DictReader(stream)
+        fields = reader.fieldnames
+        for row in reader:
+            boundary = int(row["boundary_id"])
+            rows[boundary].append(row)
+    if any(len(values) < 2 for values in rows.values()):
+        raise ValueError("Incomplete consolidated terminal traces")
+    for boundary, values in rows.items():
+        with (destination / f"terminal_{boundary}.csv").open("w") as stream:
+            writer = csv.DictWriter(stream, fieldnames=fields)
+            writer.writeheader()
+            writer.writerows(values)
 
 
 def main():
@@ -77,6 +97,8 @@ def main():
     receipt["solver_diagnostics"] = {"idas_error_reports": process.stderr.count("[IDAS ERROR]"),
                                      "log_sha256": sha256("solver-diagnostics.log")}
     heart = Series(args.manifest)
+    split_terminal_traces("output/adan56/terminals.csv", "output/adan56",
+                         [0, *receipt["terminal_boundary_ids"]])
     with Path("output/adan56/terminal_0.csv").open() as stream:
         inlet = list(csv.DictReader(stream))
     if len(inlet) < 2 or abs(float(inlet[-1]["time_s"]) - args.final_time) > 1e-12:

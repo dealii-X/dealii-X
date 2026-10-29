@@ -47,12 +47,12 @@
         "SUNDIALS",
         "PETSc"
       ],
-      "checkout_sha": "77cc1d7239ef015a1dcf73cb408a0cfb3ece9fe2",
-      "validation": "clean upstream main: native ARM64 Release build, 7 focused CTests, analytic/CSV MPI 1/2 ranks, short MOX/ADAN56; no integration patch",
+      "checkout_sha": "9e013df07eeaa585bd140bbd629bfbf4d9a5bee4",
+      "validation": "MOX input preparation only; simulation not run",
       "data_status": "group-case-required",
       "working_tree_dirty": false,
-      "candidate_sha": "77cc1d7239ef015a1dcf73cb408a0cfb3ece9fe2",
-      "candidate_origin": "upstream main: PR #28 consolidates merged #22/#23 with #16\u2013#21"
+      "candidate_sha": "9e013df07eeaa585bd140bbd629bfbf4d9a5bee4",
+      "candidate_origin": "remote main 2026-10-29"
     },
     {
       "name": "immersx",

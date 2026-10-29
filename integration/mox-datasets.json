@@ -1,0 +1,54 @@
+{
+  "version": 1,
+  "source": "MOX four-chamber electromechanics; files supplied by collaborators",
+  "pressure_conversion_Pa_per_mmHg": 133.322,
+  "reference_image": "PV_loops_comparisons.png",
+  "coupling": "one-way prescribed QAV at inlet 0; pressure_AA is comparison only",
+  "cases": {
+    "normal_pressure": {
+      "filename": "electromechanics.csv",
+      "label": "Baseline",
+      "color": "blue",
+      "period_s": 0.8,
+      "heartbeats": 10,
+      "reference_images": [
+        "PV_loops_baseline.png",
+        "circulation_baseline.png"
+      ]
+    },
+    "severe_hypertension": {
+      "filename": "electromechanics_SH_severe.csv",
+      "label": "Severe systemic hypertension",
+      "color": "red",
+      "period_s": 0.7272727272727273,
+      "heartbeats": 16,
+      "reference_images": [
+        "PV_loops_SH_severe.png",
+        "circulation_SH_severe.png"
+      ]
+    }
+  },
+  "files": {
+    "electromechanics.csv": {
+      "sha1": "048720379e534d273e3316865f3c479b56c5e4d6",
+      "sha256": "cc28a7411f1f473d4df6dae06a0cfa094629de4acc85ca1b453f0033ac1cdf1c",
+      "bytes": 18382001
+    },
+    "electromechanics_SH_severe.csv": {
+      "sha1": "290cf3c85d662ecab1ad3ce94482fe9cd8c8322c",
+      "sha256": "c01b0dd135042db4b195025dd2874912033331babd39198b1df6622027fd5291",
+      "bytes": 26737727
+    },
+    "4_chambers_electromechanics_legend.xlsx": {
+      "sha1": "0ca89a3710de6e65611df8466cafc5a985e494d3",
+      "sha256": "4c7491f742305ef5e489ed07fdc1625ab0215df0b7b248b6a12848a4f66e2592",
+      "bytes": 13738
+    },
+    "4_chambers_electromechanics_legend.md": {
+      "sha1": "9857b646a4a6ff4b0514f87082cb111a89e6f273",
+      "sha256": "4baa91f89befd758af0e587c31b97e4f5eb0430d77df79df800ce58c5e447a5a",
+      "bytes": 14896
+    }
+  },
+  "reference_figures_distribution": "Local comparison/documentation references only; excluded from dataset release"
+}

@@ -1,5 +1,30 @@
 # Integration changelog
 
+## 2026-10-29 — MOX normal-pressure and severe-hypertension inputs
+
+- Added the unchanged `electromechanics_SH_severe.csv` to the external assets
+  collection. All five received PNGs remain local references and are excluded
+  from the dataset archive. Added tracked
+  `integration/mox-datasets.json` with SHA-1/SHA-256, file sizes and explicit cases;
+  release packaging now also emits SHA-1 and SHA-256 checksum lists.
+- Recorded MOX's periods: 0.8 s for 10 normal beats and 0.8/1.1 s for 16 severe
+  beats. Preserve the full 8 s / 11.636 s histories; the severe final source
+  sample is 0.0003636 s short of the nominal end and is never extrapolated.
+- Added reproducible preparation/launch/analysis for ADAVN full and ADAN56 for
+  both cases, with isolated output directories and a preparation-only default.
+  Retained the existing networks and one-way QAV coupling. The four-chamber
+  blue/red PV reference uses each case's final beat and the actual MOX chamber
+  pressures/volumes; computed 1D inlet pressure remains a separate comparison.
+- Pinned only MetricFlowX to upstream main
+  `9e013df07eeaa585bd140bbd629bfbf4d9a5bee4`; other component pins are preserved.
+  Adapted the existing ADAN56 organ-DAG exporter to consolidated native terminal
+  CSVs required by this pin.
+- Prepared all four cases using the existing verified anatomical ADAVN network
+  and the pinned ADAN56 mesh. Verified fresh asset extraction, both checksums,
+  supplied periods/coverage, negative-flow preservation and four-panel plotting.
+  Python checks and documentation build are recorded in the task validation.
+  No physiological solve, MPI launch or Slurm submission was performed.
+
 ## 2026-10-19 — Reproducible multi-organ environment
 
 ### 1. Read-only baseline

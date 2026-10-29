@@ -56,7 +56,8 @@ class Workflows(unittest.TestCase):
         with patch("dealiix.adan56.git", return_value="test-source-sha"):
             prepare_adan56(manifest, source, case, final_time=.5, refinements=0)
         parameters = (case / "case.prm").read_text()
-        self.assertIn("set Write terminal CSV files = true", parameters)
+        self.assertIn("set Output terminal CSV file = terminals.csv", parameters)
+        self.assertNotIn("set Write terminal CSV files", parameters)
         self.assertIn("set Inflow CSV file = inflow.csv", parameters)
         self.assertIn("set Inflow CSV period = 0", parameters)
         self.assertIn("set Outlet boundary condition type = RCR", parameters)

@@ -1,5 +1,6 @@
 """Package the current external assets for the updateable GitHub assets release."""
 import argparse
+import hashlib
 import json
 from pathlib import Path
 import zipfile
@@ -21,7 +22,8 @@ def package_assets(directory, destination):
     if not paths: raise ValueError("No assets to package")
     destination.mkdir(parents=True, exist_ok=True)
     archive = destination / "assets.zip"
-    files = [{"name": p.relative_to(root).as_posix(), "sha256": sha256(p), "bytes": p.stat().st_size}
+    files = [{"name": p.relative_to(root).as_posix(), "sha256": sha256(p),
+              "sha1": hashlib.sha1(p.read_bytes()).hexdigest(), "bytes": p.stat().st_size}
              for p in paths]
     with zipfile.ZipFile(archive, "w", compression=zipfile.ZIP_DEFLATED, compresslevel=9) as bundle:
         for path, item in zip(paths, files):
@@ -29,8 +31,12 @@ def package_assets(directory, destination):
             info.external_attr = 0o100644 << 16
             bundle.writestr(info, path.read_bytes(), compress_type=zipfile.ZIP_DEFLATED, compresslevel=9)
     manifest = {"version": 1, "archive": {"name": "assets.zip", "sha256": sha256(archive),
+                                          "sha1": hashlib.sha1(archive.read_bytes()).hexdigest(),
                                           "bytes": archive.stat().st_size}, "files": files}
     (destination / "assets-manifest.json").write_text(json.dumps(manifest, indent=2) + "\n")
+    for algorithm in ("sha1", "sha256"):
+        (destination / f"assets.{algorithm}").write_text("".join(
+            f"{item[algorithm]}  {item['name']}\n" for item in [manifest["archive"], *files]))
     return manifest
 
 

@@ -6,6 +6,7 @@ ARG NODE_BASE=node:22-bookworm@sha256:0e5f906573693feaa1e21057ebdcfdb5bd5021f050
 
 FROM ${PYTHON_BASE} AS contracts
 COPY integration /opt/dealiix-integration
+RUN pip install --no-cache-dir -r /opt/dealiix-integration/examples/heart_circulation/requirements.txt
 ENV PYTHONPATH=/opt/dealiix-integration
 WORKDIR /work
 RUN python3 -m unittest discover -s /opt/dealiix-integration/tests -v
