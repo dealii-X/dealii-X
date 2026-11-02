@@ -1,5 +1,17 @@
 # Integration changelog
 
+## 2026-11-02 — First four-case MOX vascular-load calibration
+
+- Opened #42 for the diastolic pressure mismatch and trace-derived normal/severe
+  MOX arterial R/C estimates. Added fresh-input preparation that fits a steady
+  resistance graph and total arterial compliance including the 1D walls.
+- Record arterial stiffness, terminal-C and peripheral-R multipliers alongside
+  all baseline/input hashes. Retain geometry, inflow, venous parameters,
+  pressure datums and BDF2/IDA settings; original results are preserved.
+- Added a local macOS controller running one serial MPI case per model, followed
+  by the per-case checks and combined comparisons. Transient improvement and
+  physiological/numerical validation are assessed independently of preparation.
+
 ## 2026-11-02 — Arterial compartment pressure comparison
 
 - Added postprocessing of all four completed VTK histories to compare MOX

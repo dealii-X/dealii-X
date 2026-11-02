@@ -2,6 +2,11 @@
 
 Implementation PR: [#39](https://github.com/dealii-X/dealii-X/pull/39). Meta-issue: [#16](https://github.com/dealii-X/dealii-X/issues/16).
 
+MOX pressure/vascular-load calibration: [#42](https://github.com/dealii-X/dealii-X/issues/42)
+tracks the original diastolic mismatch, inferred normal/severe R/C changes and
+the fresh ADAVN/ADAN56 fitting campaign begun on 2026-11-02. Completion and
+validation of this experiment are separate from the older component audit below.
+
 All coordination issues live in this repository. Status checked on 2026-10-22.
 
 | Status | Task | Target code | Local patch/workaround |

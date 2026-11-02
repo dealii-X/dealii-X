@@ -241,3 +241,49 @@ summary CSV, four full-history CSVs (including length-weighted means as a
 separate diagnostic), and a JSON report recording all native-file hashes and
 the averaging definition. The summary averages the instantaneous spatial mean
 over the last nominal beat, retaining the severe CSV's tiny final sampling gap.
+
+### First MOX load-fitting experiment
+
+Issue [#42](https://github.com/dealii-X/dealii-X/issues/42) tracks the pressure
+trough mismatch and the initial four-case calibration campaign. Prepare fresh
+inputs from the completed original cases:
+
+```bash
+"$PYTHON" integration/examples/heart_circulation/calibrate_mox.py \
+  --baseline "$PWD/build/integration/heart_circulation" \
+  --assets "$PWD/assets" \
+  --output "$PWD/build/integration/heart_circulation/calibration_20261102_v1"
+```
+
+The preparation infers equivalent arterial R/L from the MOX pressure/flow
+relations and C from diastolic samples. It fits peripheral resistance to the
+MOX last-beat mean pressure using a reference-geometry steady resistor graph.
+It then matches the total arterial compliance proxy `sum(L*dA/dp) + sum(C_bed)`
+at uniform MOX mean pressure, scaling arterial elastic moduli by `k` and
+terminal arterial C by `1/k`. ADAN56 R1 scales with `sqrt(k)` to retain its
+relative characteristic-impedance scaling; R2 is fitted separately. ADAVN
+retains its 15%/85% resistance split and draining-vein conductance weights.
+Venous parameters, geometry, inflow, pressure datums and numerical settings
+are retained. Each new case has `calibration.json`, baseline hashes, updated
+input hashes and the precise parameter multipliers.
+
+These are reduced-model fitting proxies, not an optimized transient fit or
+confirmed MOX input parameters. Wall compliance is included so a total-system
+compliance is not copied into every terminal. The preparation refuses an
+existing output directory or changed baseline inputs/executable.
+
+On this Mac, launch one serial MPI process per model, with normal and severe
+cases sequential within each model:
+
+```bash
+"$PYTHON" integration/examples/heart_circulation/run_calibration.py \
+  --results "$PWD/build/integration/heart_circulation/calibration_20261102_v1" \
+  --baseline "$PWD/build/integration/heart_circulation" \
+  --assets "$PWD/assets" --launcher "$MPIEXEC" --allow-local
+```
+
+`run_status.json` records progress and each case retains its own logs. Once
+all four cases pass the existing output checks, the controller generates both
+inlet and arterial-volume-mean comparisons and `fit_assessment.json` compares
+inlet-pressure errors with the originals. Physiological calibration,
+periodicity, conservation and numerical convergence remain separate checks.
