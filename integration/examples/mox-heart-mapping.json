@@ -1,0 +1,17 @@
+{
+  "time_column": "time",
+  "time_unit": "s",
+  "anatomy": "ascending-aorta",
+  "provenance": {
+    "synthetic": false,
+    "source": "MOX four-chamber 3D-0D electromechanics",
+    "legend_sha256": "4c7491f742305ef5e489ed07fdc1625ab0215df0b7b248b6a12848a4f66e2592",
+    "pressure_datum_status": "not specified in supplied legend; retain original model datum",
+    "flow_orientation_status": "valve forward orientation assumed LV-to-aorta; group confirmation pending",
+    "original_0d_compatibility": "not yet validated"
+  },
+  "channels": [
+    {"name": "Q", "column": "QAV", "quantity": "flow", "unit": "ml/s", "positive_direction": "left-ventricle-to-ascending-aorta"},
+    {"name": "P", "column": "pressure_AA", "quantity": "pressure", "unit": "Pa", "reference": "MOX-original-model-datum-unspecified"}
+  ]
+}

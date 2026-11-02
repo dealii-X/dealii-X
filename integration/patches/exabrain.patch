@@ -1,0 +1,11 @@
+diff --git a/CMakeLists.txt b/CMakeLists.txt
+--- a/CMakeLists.txt
++++ b/CMakeLists.txt
+@@ -50,6 +50,6 @@ ENDIF()
+ 
+ DEAL_II_INITIALIZE_CACHED_VARIABLES()
+ 
+-SET (CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -march=native")
++# Use the configured compiler baseline for distributable builds.
+ PROJECT(${TARGET})
+ DEAL_II_INVOKE_AUTOPILOT()

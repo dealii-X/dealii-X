@@ -1,0 +1,392 @@
+{
+  "date": "2026-10-27",
+  "scope": "13 integration components plus 5 PSCToolkit nested repositories",
+  "policy": "Audit only: build manifest/gitlinks remain at their recorded revisions; remote HEADs are not validated pins.",
+  "repositories": [
+    {
+      "component": "dealii",
+      "url": "https://github.com/dealii/dealii.git",
+      "scientific_branch": "master",
+      "pinned_candidate": "8122d681995b6baf254bcab3c943e9b0ef4c5870",
+      "remote_sha": "af8d880a75bc420fda937debabe00899d976ce09",
+      "changed_since_pin": true,
+      "observation": "Main advanced; the empty-rank fix dealii/dealii#20307 remains upstream. Later solver/output/build-system work is not a common-baseline revalidation.",
+      "next_action": "Validate the selected common baseline, MPI/SUNDIALS/backend ABI and all consumers before freezing.",
+      "central_issues": [
+        34
+      ],
+      "validation": "read-only refs/PRs/source inspection; no fresh build/numerical execution",
+      "related_upstream_issue": {
+        "closedAt": "2026-10-19T16:30:16Z",
+        "closedByPullRequestsReferences": [
+          {
+            "id": "PR_kwDOAU7WrM8AAAABJSrPqw",
+            "number": 20307,
+            "repository": {
+              "id": "MDEwOlJlcG9zaXRvcnkyMTk0Mzk4MA==",
+              "name": "dealii",
+              "owner": {
+                "id": "MDEyOk9yZ2FuaXphdGlvbjc1MDYwNzA=",
+                "login": "dealii"
+              }
+            },
+            "url": "https://github.com/dealii/dealii/pull/20307"
+          }
+        ],
+        "number": 20306,
+        "state": "CLOSED",
+        "title": "SUNDIALS distributed NVector min_element dereferences empty local ownership",
+        "url": "https://github.com/dealii/dealii/issues/20306"
+      }
+    },
+    {
+      "component": "lifex",
+      "url": "https://gitlab.com/lifex/lifex-public.git",
+      "scientific_branch": "main",
+      "pinned_candidate": "7e0421580bb32a5e0e3ec088ca313264c61222a2",
+      "remote_sha": "7e0421580bb32a5e0e3ec088ca313264c61222a2",
+      "changed_since_pin": false,
+      "observation": "Public main unchanged; no new public merge after the May cleanup in this audit.",
+      "next_action": "Compatibility and exact complete MOX source/minimal case remain unverified.",
+      "central_issues": [
+        24,
+        32
+      ],
+      "validation": "read-only refs/PRs/source inspection; no fresh build/numerical execution"
+    },
+    {
+      "component": "metric-flow-x",
+      "url": "https://github.com/luca-heltai/metric-flow-x.git",
+      "scientific_branch": "main",
+      "pinned_candidate": "77cc1d7239ef015a1dcf73cb408a0cfb3ece9fe2",
+      "remote_sha": "c93950deec04cbf0436a7140aabd76fc28b5edce",
+      "changed_since_pin": true,
+      "observation": "Main now includes consolidated terminal output (luca-heltai/metric-flow-x#65, luca-heltai/metric-flow-x#67), consistent/steady initialization (luca-heltai/metric-flow-x#62), IDA controls/error guards (luca-heltai/metric-flow-x#64, luca-heltai/metric-flow-x#68), complete ADAN import (luca-heltai/metric-flow-x#75), ADAVN laws/native viscoelastic initialization (luca-heltai/metric-flow-x#76, luca-heltai/metric-flow-x#78), hepatic import (luca-heltai/metric-flow-x#77), and standalone image/launcher (luca-heltai/metric-flow-x#29).",
+      "next_action": "Migrate adapters from removed Write terminal CSV files/per-terminal files to configured consolidated CSV, revalidate MOX startup/8 s and choose network scope. Do not equate import or upstream small tests with full network/organ validation.",
+      "central_issues": [
+        32,
+        33,
+        34,
+        36,
+        41
+      ],
+      "validation": "read-only refs/PRs/source inspection; no fresh build/numerical execution",
+      "related_upstream_issue": {
+        "closedAt": "2026-10-22T16:33:30Z",
+        "closedByPullRequestsReferences": [
+          {
+            "id": "PR_kwDOTePqks8AAAABJnPtpQ",
+            "number": 23,
+            "repository": {
+              "id": "R_kgDOTePqkg",
+              "name": "metric-flow-x",
+              "owner": {
+                "id": "MDQ6VXNlcjI5MTk3NTY=",
+                "login": "luca-heltai"
+              }
+            },
+            "url": "https://github.com/luca-heltai/metric-flow-x/pull/23"
+          }
+        ],
+        "number": 10,
+        "state": "CLOSED",
+        "title": "Support tabulated cardiac inflow and SI terminal boundary exports",
+        "url": "https://github.com/luca-heltai/metric-flow-x/issues/10"
+      }
+    },
+    {
+      "component": "immersx",
+      "url": "https://github.com/luca-heltai/immersx.git",
+      "scientific_branch": "master",
+      "pinned_candidate": "b1ca02d06f52f2644a383aea311bf9e8f09918f3",
+      "remote_sha": "785f0c8683e19bb11404605854a92a6b08067231",
+      "changed_since_pin": true,
+      "observation": "Master advanced with corrected native MetricFlowX vessel-wall coupling/MMS (luca-heltai/immersx#275), test integration (luca-heltai/immersx#284) and time-dependent Dirichlet fix (luca-heltai/immersx#287).",
+      "next_action": "Adopt only after checking MetricFlowX API/ABI and application/plugin tests. Vessel-wall MMS is not a physiological liver case.",
+      "central_issues": [
+        29,
+        34,
+        35
+      ],
+      "validation": "read-only refs/PRs/source inspection; no fresh build/numerical execution"
+    },
+    {
+      "component": "exabrain",
+      "url": "https://github.com/BRAINIACS-Group/ExaBrain.git",
+      "scientific_branch": "main",
+      "pinned_candidate": "9a4f3218defea30b4b585411ed9ddaf58d0b4d3b",
+      "remote_sha": "9a4f3218defea30b4b585411ed9ddaf58d0b4d3b",
+      "changed_since_pin": false,
+      "observation": "Public main unchanged; related compatibility/interface issue BRAINIACS-Group/ExaBrain#3 is still open.",
+      "next_action": "Confirm scientific branch/vascularized brain case and modernize supported deal.II APIs.",
+      "central_issues": [
+        23,
+        30
+      ],
+      "validation": "read-only refs/PRs/source inspection; no fresh build/numerical execution",
+      "related_upstream_issue": {
+        "closedAt": null,
+        "closedByPullRequestsReferences": [],
+        "number": 3,
+        "state": "OPEN",
+        "title": "Restore current deal.II build and define the vascular terminal-data interface",
+        "url": "https://github.com/BRAINIACS-Group/ExaBrain/issues/3"
+      }
+    },
+    {
+      "component": "exadg",
+      "url": "https://github.com/temuer/exadg.git",
+      "scientific_branch": "alveolar-model",
+      "pinned_candidate": "0fc5c8aa8dc096db153ece05215b497ec9db94d0",
+      "remote_sha": "890383b85a6bb63330a6ba02aeee572b980a386e",
+      "changed_since_pin": true,
+      "observation": "alveolar-model advanced by three commits: MPI shared-memory fix, agent notes, and alveolar_hex application. The latter input names alveolar_hex.msh; no alveolar .msh/.e asset is present in the audited tracked tree.",
+      "next_action": "Confirm selected alveolar variant and mesh source/generator; rerun portability and native case. Changed files do not establish repair of the previous ARM SIMD failure.",
+      "central_issues": [
+        25,
+        26
+      ],
+      "validation": "read-only refs/PRs/source inspection; no fresh build/numerical execution"
+    },
+    {
+      "component": "4c",
+      "url": "https://github.com/4C-multiphysics/4C.git",
+      "scientific_branch": "main",
+      "pinned_candidate": "16cff11a8ed481f362a73e4332193d234f3dbcd6",
+      "remote_sha": "c86e408398aa8468bd1d973a594c2760b27c56dd",
+      "changed_since_pin": true,
+      "observation": "Oxygen inversion issue 4C-multiphysics/4C#2354 is closed by merged PR 4C-multiphysics/4C#2360 (b6d1ff60), with physical bracketing/FAD/invalid-input tests and successful upstream CI. Main has advanced.",
+      "next_action": "Update isolated source/dependency baseline, remove superseded local oxygen patch after native regression and verify group case; central port/pin task remains open.",
+      "central_issues": [
+        22,
+        31,
+        34
+      ],
+      "validation": "read-only refs/PRs/source inspection; no fresh build/numerical execution",
+      "related_upstream_issue": {
+        "closedAt": "2026-10-26T08:08:49Z",
+        "closedByPullRequestsReferences": [
+          {
+            "id": "PR_kwDOMSYye88AAAABKCrRoA",
+            "number": 2360,
+            "repository": {
+              "id": "R_kgDOMSYyew",
+              "name": "4C",
+              "owner": {
+                "id": "O_kgDOCcdO5g",
+                "login": "4C-multiphysics"
+              }
+            },
+            "url": "https://github.com/4C-multiphysics/4C/pull/2360"
+          }
+        ],
+        "number": 2354,
+        "state": "CLOSED",
+        "title": "Oxygen concentration inversion can select a negative partial-pressure root",
+        "url": "https://github.com/4C-multiphysics/4C/issues/2354"
+      }
+    },
+    {
+      "component": "psctoolkit",
+      "url": "https://github.com/psctoolkit/psctoolkit.git",
+      "scientific_branch": "master",
+      "pinned_candidate": "883a4280465d5705c205f46fa662bd342f752d35",
+      "remote_sha": "883a4280465d5705c205f46fa662bd342f752d35",
+      "changed_since_pin": false,
+      "observation": "Parent master unchanged; its nested gitlinks remain the recorded set.",
+      "next_action": "Compare nested updates as a compatible set, resolve OpenMP build configuration and validate CPU/CUDA separately.",
+      "central_issues": [
+        28,
+        34
+      ],
+      "validation": "read-only refs/PRs/source inspection; no fresh build/numerical execution"
+    },
+    {
+      "component": "polydeal",
+      "url": "https://github.com/fdrmrc/Polydeal.git",
+      "scientific_branch": "main",
+      "pinned_candidate": "1120f5dec15368fbacdcdb10100043dd170cecf1",
+      "remote_sha": "1120f5dec15368fbacdcdb10100043dd170cecf1",
+      "changed_since_pin": false,
+      "observation": "Main unchanged at already integrated PR fdrmrc/Polydeal#161; include workaround is retired.",
+      "next_action": "Complete common-baseline/examples/container validation independently of completed include-fix port.",
+      "central_issues": [
+        34,
+        36
+      ],
+      "validation": "read-only refs/PRs/source inspection; no fresh build/numerical execution",
+      "related_upstream_issue": {
+        "closedAt": "2026-10-19T09:21:49Z",
+        "closedByPullRequestsReferences": [
+          {
+            "id": "PR_kwDOIMx5Cs8AAAABJSkPWQ",
+            "number": 161,
+            "repository": {
+              "id": "R_kgDOIMx5Cg",
+              "name": "Polydeal",
+              "owner": {
+                "id": "MDQ6VXNlcjUwNDk5NzY5",
+                "login": "fdrmrc"
+              }
+            },
+            "url": "https://github.com/fdrmrc/Polydeal/pull/161"
+          }
+        ],
+        "number": 160,
+        "state": "CLOSED",
+        "title": "Include quadrature_lib.h explicitly for QGauss with current deal.II",
+        "url": "https://github.com/fdrmrc/Polydeal/issues/160"
+      }
+    },
+    {
+      "component": "platform",
+      "url": "https://github.com/2listic/dealiiX-platform.git",
+      "scientific_branch": "main",
+      "pinned_candidate": "36580d3c6fe94cc98e2023faf06bca8272eceb25",
+      "remote_sha": "36580d3c6fe94cc98e2023faf06bca8272eceb25",
+      "changed_since_pin": false,
+      "observation": "Main unchanged; artifact/backend issue 2listic/dealiiX-platform#240 remains open. PR 2listic/dealiiX-platform#239 is merged only into feature/parameter-file-editor, and 2listic/dealiiX-platform#226 is still open.",
+      "next_action": "Preserve distinction between reviewed stacked changes and main; port/review stage/artifact integration and run GUI/remote E2E.",
+      "central_issues": [
+        20,
+        35
+      ],
+      "validation": "read-only refs/PRs/source inspection; no fresh build/numerical execution",
+      "related_upstream_issue": {
+        "closedAt": null,
+        "closedByPullRequestsReferences": [],
+        "number": 240,
+        "state": "OPEN",
+        "title": "Support per-stage Coral backends and named pipeline artifacts",
+        "url": "https://github.com/2listic/dealiiX-platform/issues/240"
+      }
+    },
+    {
+      "component": "coral",
+      "url": "https://github.com/2listic/coral.git",
+      "scientific_branch": "HEAD",
+      "pinned_candidate": "6764d0bc38271be4b95c7a9f56af7af20b33bb60",
+      "remote_sha": "6764d0bc38271be4b95c7a9f56af7af20b33bb60",
+      "changed_since_pin": false,
+      "observation": "Default HEAD unchanged at the audited installable-SDK candidate.",
+      "next_action": "Validate installed registry/ABI and orchestration with updated application stacks.",
+      "central_issues": [
+        35
+      ],
+      "validation": "read-only refs/PRs/source inspection; no fresh build/numerical execution"
+    },
+    {
+      "component": "visualizer",
+      "url": "https://github.com/2listic/coral-visualizer.git",
+      "scientific_branch": "HEAD",
+      "pinned_candidate": "e7234760d0f1d49057b01b6e8ff652b4585c8383",
+      "remote_sha": "e7234760d0f1d49057b01b6e8ff652b4585c8383",
+      "changed_since_pin": false,
+      "observation": "Default HEAD unchanged.",
+      "next_action": "Visualizer runtime, shared volumes and complete Compose path remain unvalidated.",
+      "central_issues": [
+        36
+      ],
+      "validation": "read-only refs/PRs/source inspection; no fresh build/numerical execution"
+    },
+    {
+      "component": "remote-server",
+      "url": "https://github.com/2listic/coral-remote-server.git",
+      "scientific_branch": "HEAD",
+      "pinned_candidate": "d94bfb938542b58662e7b8250510c7eee456fb3b",
+      "remote_sha": "d94bfb938542b58662e7b8250510c7eee456fb3b",
+      "changed_since_pin": false,
+      "observation": "Default HEAD unchanged.",
+      "next_action": "Validate optional authenticated server/runtime and execution profiles.",
+      "central_issues": [
+        35,
+        36,
+        37
+      ],
+      "validation": "read-only refs/PRs/source inspection; no fresh build/numerical execution"
+    },
+    {
+      "component": "psblas3",
+      "url": "https://github.com/sfilippone/psblas3.git",
+      "scientific_branch": "maint-3.8.0",
+      "pinned_candidate": "a082cdb1b648fa62de48781815e7090ae9c777a9",
+      "remote_sha": "89122b9b93977c1fc3c0ed238c0753fbc58576ac",
+      "changed_since_pin": true,
+      "observation": "maint-3.8.0 advanced beyond the parent gitlink; recent merged C/C++ bool and HDIA fixes are visible.",
+      "next_action": "Validate nested revision compatibility rather than independently advancing its gitlink.",
+      "central_issues": [
+        28,
+        34
+      ],
+      "validation": "read-only refs/PRs/source inspection; no fresh build/numerical execution"
+    },
+    {
+      "component": "psblas3-ext",
+      "url": "https://github.com/sfilippone/psblas3-ext.git",
+      "scientific_branch": "maint-1.3",
+      "pinned_candidate": "fb9ee0c96b16aaf2f425ef12a419b247d204c43c",
+      "remote_sha": "fb9ee0c96b16aaf2f425ef12a419b247d204c43c",
+      "changed_since_pin": false,
+      "observation": "maint-1.3 unchanged; missing-helper issue sfilippone/psblas3-ext#1 and proposed PR sfilippone/psblas3-ext#2 remain open, not merged.",
+      "next_action": "Keep the documented helper workaround until a reviewed source/bootstrap fix is adopted and tested.",
+      "central_issues": [
+        27,
+        28
+      ],
+      "validation": "read-only refs/PRs/source inspection; no fresh build/numerical execution",
+      "related_upstream_issue": {
+        "closedAt": null,
+        "closedByPullRequestsReferences": [],
+        "number": 1,
+        "state": "OPEN",
+        "title": "Source checkout configure fails because the compile auxiliary script is missing",
+        "url": "https://github.com/sfilippone/psblas3-ext/issues/1"
+      }
+    },
+    {
+      "component": "sundials-psc",
+      "url": "https://github.com/Cirdans-Home/sundials.git",
+      "scientific_branch": "psblasinterface",
+      "pinned_candidate": "b1b375348247b76d4d2b3169b3cd2b9edc27e613",
+      "remote_sha": "b1b375348247b76d4d2b3169b3cd2b9edc27e613",
+      "changed_since_pin": false,
+      "observation": "psblasinterface unchanged at the parent gitlink.",
+      "next_action": "Check the legacy PSCToolkit fork with the chosen toolchain/MPI/runtime; upstream SUNDIALS 7 compatibility elsewhere does not validate this fork.",
+      "central_issues": [
+        28,
+        34
+      ],
+      "validation": "read-only refs/PRs/source inspection; no fresh build/numerical execution"
+    },
+    {
+      "component": "spgpu",
+      "url": "https://github.com/davidebarbieri/spgpu.git",
+      "scientific_branch": "HEAD",
+      "pinned_candidate": "75701769bfd43114c0c2bb3049715d5991a8c010",
+      "remote_sha": "4882651fd1574aabc764e79f495203d8639257c3",
+      "changed_since_pin": true,
+      "observation": "Default HEAD differs from the parent gitlink.",
+      "next_action": "Assess the actual CUDA/compiler and PSBLAS extension compatibility on GPU hardware.",
+      "central_issues": [
+        28
+      ],
+      "validation": "read-only refs/PRs/source inspection; no fresh build/numerical execution"
+    },
+    {
+      "component": "amg4psblas",
+      "url": "https://github.com/sfilippone/amg4psblas.git",
+      "scientific_branch": "maint-1.1.0",
+      "pinned_candidate": "e06338f7fb521d5a3373630254acd424548f2043",
+      "remote_sha": "dd7cb86775ff90ab0766c1b3a9147c798b240a81",
+      "changed_since_pin": true,
+      "observation": "maint-1.1.0 differs from the parent gitlink.",
+      "next_action": "Resolve/build the OpenMP/AMG stack and validate with matched PSBLAS revisions.",
+      "central_issues": [
+        28,
+        34
+      ],
+      "validation": "read-only refs/PRs/source inspection; no fresh build/numerical execution"
+    }
+  ],
+  "decision_issue": "https://github.com/dealii-X/dealii-X/issues/41"
+}

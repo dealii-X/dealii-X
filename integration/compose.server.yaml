@@ -1,0 +1,13 @@
+services:
+  remote-server:
+    build:
+      context: ../build/integration/candidates/remote-server
+    image: dealiix/remote-server:integration-v1
+    ports: ["127.0.0.1:8080:8080"]
+    environment:
+      PORT: "8080"
+      DB_PATH: /data/coral.db
+      JWT_SECRET: "${DEALIIX_JWT_SECRET:?Set an explicit server secret}"
+    volumes: ["server-data:/data"]
+volumes:
+  server-data:

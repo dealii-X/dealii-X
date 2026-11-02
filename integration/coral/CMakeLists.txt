@@ -1,0 +1,13 @@
+cmake_minimum_required(VERSION 3.18)
+project(dealiix_workflow_plugins LANGUAGES CXX)
+find_package(coral CONFIG REQUIRED)
+include(GNUInstallDirs)
+foreach(component heart metric_flow_x lifex immersx exabrain exadg four_c dealii psctoolkit polydeal)
+  add_library(dealiix_${component} MODULE workflow_plugin.cc)
+  target_link_libraries(dealiix_${component} PRIVATE coral::core)
+  target_compile_features(dealiix_${component} PRIVATE cxx_std_17)
+  target_compile_definitions(dealiix_${component} PRIVATE DEALIIX_COMPONENT="${component}")
+  set_target_properties(dealiix_${component} PROPERTIES
+    INSTALL_RPATH_USE_LINK_PATH TRUE)
+  install(TARGETS dealiix_${component} LIBRARY DESTINATION ${CMAKE_INSTALL_LIBDIR}/dealiix)
+endforeach()

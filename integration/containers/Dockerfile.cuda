@@ -1,0 +1,15 @@
+# syntax=docker/dockerfile:1.7
+ARG CUDA_BASE=nvidia/cuda:12.6.2-devel-ubuntu24.04@sha256:738fba0fbdb225b7a2931c58a5c8f03a84d3cd2f6a84975826a157339ef750b8
+ARG CPU_IMAGE=dealiix/psctoolkit:integration-v1
+FROM ${CUDA_BASE} AS cuda
+FROM ${CPU_IMAGE} AS cuda-build
+USER root
+COPY --from=cuda /usr/local/cuda-12.6 /usr/local/cuda-12.6
+ENV CUDA_HOME=/usr/local/cuda-12.6
+ENV PATH=/usr/local/cuda-12.6/bin:${PATH}
+ENV LD_LIBRARY_PATH=/usr/local/cuda-12.6/lib64:${LD_LIBRARY_PATH}
+ARG JOBS=4
+RUN python3 -m dealiix.build psctoolkit --manifest /opt/dealiix-integration/sources.json \
+    --source-root /sources --build-root /build-cuda --prefix-root /opt/dealiix-cuda \
+    --jobs ${JOBS} --gpu cuda
+CMD ["bash"]

@@ -1,0 +1,10 @@
+{
+  "time_column": "time_ms",
+  "time_unit": "ms",
+  "anatomy": "synthetic-aorta",
+  "provenance": {"synthetic": true, "source": "software-test-fixture"},
+  "channels": [
+    {"name": "Q", "column": "flow_ml_s", "quantity": "flow", "unit": "ml/s", "positive_direction": "heart-to-aorta"},
+    {"name": "P", "column": "pressure_mmHg", "quantity": "pressure", "unit": "mmHg", "reference": "gauge-to-atmosphere"}
+  ]
+}

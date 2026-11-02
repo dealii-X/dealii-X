@@ -1,0 +1,2 @@
+# Empty context lines in unified patches require one literal space.
+integration/patches/*.patch -whitespace

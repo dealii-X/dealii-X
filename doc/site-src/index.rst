@@ -14,4 +14,6 @@ Contents
 
    project_overview
    technical_scope
+   integrated_workflows
+   mox_heart_circulation
    supporting_code/index

@@ -1,0 +1,9 @@
+{
+  "validated": false,
+  "cluster": "REPLACE_WITH_SITE_NAME",
+  "image_digest": "REPLACE_WITH_VALIDATED_OCI_DIGEST",
+  "mpi_implementation": "REPLACE_WITH_HOST_MPI_IMPLEMENTATION_AND_VERSION",
+  "slurm_mpi_plugin": "REPLACE_WITH_TESTED_PMI_OR_PMIX_PLUGIN",
+  "tests_required": ["single-rank", "two-ranks-one-node", "two-nodes", "native-solver-comparison"],
+  "results": {}
+}
