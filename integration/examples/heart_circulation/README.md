@@ -209,3 +209,35 @@ four-chamber baseline/severe PV comparison reconstructed from the unchanged
 cardiac CSVs. Analysis uses the nominal last-beat windows recorded in provenance,
 without pressure offsets, fitted phase shifts, inflow clipping or calibration.
 ADAN56 has no venous network and neither 1D model predicts new cardiac PV loops.
+
+### Spatial mean across the arterial compartment
+
+To compare the arterial trees with the MOX systemic 0D pressure `pARSYS`:
+
+```bash
+"$PYTHON" integration/examples/heart_circulation/arterial_pressure_mox.py \
+  --assets "$PWD/assets" \
+  --results "$PWD/build/integration/heart_circulation" \
+  --output "$PWD/build/integration/mox_comparison/arterial_compartment"
+```
+
+This postprocessor reads the completed one-process VTK histories and computes
+the instantaneous blood-volume mean, `sum(integral(p*A ds))/sum(integral(A ds))`,
+over all resolved systemic arterial vessels. The prepared ADAVN vessel-type
+array excludes all veins; all ADAN56 vessels are arterial. Lumped peripheral/RCR
+storage is excluded because its blood volumes are not available in these files.
+MOX `pARSYS` is a lumped compartment pressure, equal to `pressure_AA/133.322` in
+the supplied histories; it is not an independently measured spatial average.
+
+The product of the saved piecewise-linear pressure and area fields is integrated
+exactly on every VTK line, with physical line lengths as weights. These output
+files store only element endpoints, so this reconstruction does not recover the
+interior values of the original degree-2 finite elements. No solver is launched.
+The script checks source/parameter/mesh hashes, complete material-ID and time
+coverage, positive areas, finite pressures and unchanged saved geometry.
+
+Exports include last-beat and full-history PNG/PDF/SVG comparisons, a time-mean
+summary CSV, four full-history CSVs (including length-weighted means as a
+separate diagnostic), and a JSON report recording all native-file hashes and
+the averaging definition. The summary averages the instantaneous spatial mean
+over the last nominal beat, retaining the severe CSV's tiny final sampling gap.

@@ -1,5 +1,17 @@
 # Integration changelog
 
+## 2026-11-02 — Arterial compartment pressure comparison
+
+- Added postprocessing of all four completed VTK histories to compare MOX
+  `pARSYS` with the blood-volume-weighted pressure across the resolved arterial
+  trees, excluding ADAVN veins and lumped peripheral storage.
+- Export last-beat and full-history figures, plotted-data CSVs, time-mean
+  summaries and native-file provenance. Document the saved piecewise-linear
+  reconstruction and its distinction from exact degree-2 FE integration.
+- The last-beat means are 91.04/91.83 mmHg (normal ADAVN/ADAN56) and
+  86.28/86.66 mmHg (severe), against MOX 86.23/104.85 mmHg. No simulation was
+  rerun and no physical parameters or existing result files were changed.
+
 ## 2026-10-29 — Completed cases and local MOX comparison figures
 
 - All four BDF-2 runs completed their supplied histories (8 s normal,
