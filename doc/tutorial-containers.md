@@ -76,6 +76,6 @@ resolves the highest stable published version of each direct dependency,
 then builds and tests the execution image using that ImmersX release. Each
 dependency must provide an index for both architectures. The workflow publishes
 the explicit dealii-X version, and `latest` follows the highest published
-stable release. The published index records the dependency references so
+stable release. The execution image labels record the dependency references so
 the Compose file can also be regenerated using
 `scripts/render_release_compose.sh <immersx> <visualizer> <platform> <execution>`.
