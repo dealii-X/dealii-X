@@ -1,2 +1,5 @@
 .aider*
 .env
+
+# Local tutorial data, SSH keys and platform settings
+/.dealiix-tutorial/

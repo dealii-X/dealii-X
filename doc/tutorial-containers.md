@@ -1,0 +1,59 @@
+# Run the dealii-X tutorial stack
+
+From the root of the dealii-X repository, initialize the local work directory
+and SSH key, pull the images, and start the stack:
+
+```sh
+./scripts/tutorial-init.sh
+docker compose pull
+docker compose up -d
+```
+
+Open the platform through noVNC at <http://localhost:6080> and Coral Visualizer
+at <http://localhost:8008>. The shared work directory on the host is
+`.dealiix-tutorial/shared-data`. The platform uses examples copied from the same
+ImmersX image that runs the backend, so those examples follow the selected
+ImmersX tag. Stop the stack with `docker compose down`.
+
+## Development and release tags
+
+By default Compose pulls the `main` image tag for each service. The ImmersX
+backend comes from the ImmersX default Git branch and includes Coral and the
+ImmersX plugins. ImmersX builds against the Coral and MetricFlowX images.
+To select a published release combination, set each service's tag in `.env`:
+
+```dotenv
+IMMERSX_TAG=main
+CORAL_VISUALIZER_TAG=main
+DEALIIX_PLATFORM_TAG=main
+```
+
+Replace `main` with the published release tag for that component. The tags can
+differ between services. Compose reads these tag variables during both pull
+and startup. `docker compose config --images` shows the resulting references.
+Configure the local ports with `CORAL_SSH_PORT`, `VISUALIZER_PORT`, or
+`PLATFORM_PORT`. The defaults are 2222, 8008, and 6080, bound to loopback.
+
+## Platform settings
+
+If the platform image has no configured remote target, use these settings:
+
+| Setting | Value |
+| --- | --- |
+| Host and port | `coral-ssh-slurm`, `22` |
+| Username and SSH key | `root`, `/run/tutorial-ssh/id_ed25519` |
+| Coral command | `/usr/local/bin/coral-release` |
+| 2D plugin | `/opt/dealiix/immersx/Release/lib/immersx/coral/libcoral_backend_immersx_2.so` |
+| Work directory | `/app/shared-data` |
+| MPI launcher | `srun` |
+| Visualizer URL | `http://coral-visualizer:8080` |
+
+Run **Validate & Sync**, then open an example from
+`/opt/dealiix/immersx/coral/examples`. VTK output in the shared work directory
+is visible to Coral Visualizer under `/deploy/data`.
+
+The Platform publication and end-to-end checks are tracked in
+[Platform #259](https://github.com/2listic/dealiiX-platform/issues/259).
+Native ARM64 Visualizer publication is tracked in
+[Visualizer #47](https://github.com/2listic/coral-visualizer/issues/47).
+Select image tags available for your host architecture.

@@ -1,0 +1,37 @@
+name: Tutorial Compose
+
+on:
+  pull_request:
+    paths:
+      - compose.yaml
+      - scripts/tutorial-init.sh
+      - .github/workflows/tutorial-compose.yml
+  push:
+    branches: [main]
+    paths:
+      - compose.yaml
+      - scripts/tutorial-init.sh
+      - .github/workflows/tutorial-compose.yml
+
+permissions:
+  contents: read
+
+jobs:
+  compose:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+      - name: Validate development and release tag selection
+        run: |
+          bash -n scripts/tutorial-init.sh
+          docker compose config --quiet
+          docker compose config --images | sort -u > development-images.txt
+          printf '%s\n' ghcr.io/2listic/coral-visualizer:main ghcr.io/2listic/dealiix-platform:main \
+            ghcr.io/luca-heltai/immersx-tutorial:main | sort > expected-development.txt
+          diff -u expected-development.txt development-images.txt
+
+          IMMERSX_TAG=v1.2.3 CORAL_VISUALIZER_TAG=v2.3.4 DEALIIX_PLATFORM_TAG=v3.4.5 \
+            docker compose config --images | sort -u > release-images.txt
+          printf '%s\n' ghcr.io/2listic/coral-visualizer:v2.3.4 ghcr.io/2listic/dealiix-platform:v3.4.5 \
+            ghcr.io/luca-heltai/immersx-tutorial:v1.2.3 | sort > expected-release.txt
+          diff -u expected-release.txt release-images.txt
