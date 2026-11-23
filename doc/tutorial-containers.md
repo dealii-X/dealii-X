@@ -5,9 +5,8 @@ and SSH key, pull the images, and start the stack:
 
 ```sh
 ./scripts/tutorial-init.sh
-docker compose pull --ignore-buildable
-docker compose build --pull coral-ssh-slurm
-docker compose up -d
+docker compose pull
+docker compose up -d --no-build
 ```
 
 Open the platform through noVNC at <http://localhost:6080> and Coral Visualizer
@@ -18,22 +17,30 @@ ImmersX tag. Stop the stack with `docker compose down`.
 
 ## Development and release tags
 
-By default the stack uses the `main` tags of ImmersX, Platform, and Coral
-Visualizer. dealii-X builds the SSH/Slurm execution service on top of the
-selected published ImmersX image. ImmersX provides its applications, Coral,
-and the plugins.
-To select a published release combination, set each service's tag in `.env`:
+The development Compose uses `main` for ImmersX, the dealii-X execution
+service, Coral Visualizer, and Platform. The execution service builds from
+the published ImmersX `main` image, which supplies Coral, MetricFlowX, and the
+ImmersX plugins.
 
-```dotenv
-IMMERSX_TAG=main
-CORAL_VISUALIZER_TAG=main
-DEALIIX_PLATFORM_TAG=main
+For a stable deployment, check out the dealii-X release tag and download
+`compose.release.json` from the `dealii-x-compose-<tag>` artifact of that
+tag's **Tutorial Compose** workflow. Put it in the repository root and run:
+
+```sh
+./scripts/tutorial-init.sh
+docker compose -f compose.release.json pull
+docker compose -f compose.release.json up -d
 ```
 
-Replace `main` with the published release tag for that component. The tags can
-differ between services. Compose reads these tags when pulling and building the stack. Run the same
-three Compose commands after updating a tag. `docker compose config` shows the
-resolved service images and the ImmersX base of the execution service.
+The release Compose uses the published execution image and records the
+explicit dependency versions and digests selected when it was built.
+Use the same `-f compose.release.json` option to stop the release stack.
+
+For local development with a different ImmersX base, set `IMMERSX_TAG` to
+the desired tag and `DEALIIX_TAG=local`, then run
+`docker compose build --pull coral-ssh-slurm` followed by
+`docker compose up -d`. Keep these variables set for both commands.
+
 Configure the local ports with `CORAL_SSH_PORT`, `VISUALIZER_PORT`, or
 `PLATFORM_PORT`. The defaults are 2222, 8008, and 6080, bound to loopback.
 
@@ -63,8 +70,12 @@ Select image tags available for your host architecture.
 
 ## Published execution service
 
-The dealii-X workflow builds and tests SSH and Slurm on AMD64 and ARM64 before
-publishing `ghcr.io/dealii-x/dealii-x:main`. A stable Git tag on `main` promotes
-the tested image for that revision, building it first when needed. The
-`latest` tag follows the highest published stable version. Compose can build
-the same execution Dockerfile locally to select a different ImmersX base.
+The dealii-X workflow tests SSH and Slurm on AMD64 and ARM64 before
+publishing `ghcr.io/dealii-x/dealii-x:main`. A stable Git tag on `main`
+resolves the highest stable published version of each direct dependency,
+then builds and tests the execution image using that ImmersX release. Each
+dependency must provide an index for both architectures. The workflow publishes
+the explicit dealii-X version, and `latest` follows the highest published
+stable release. The published index records the dependency references so
+the Compose file can also be regenerated using
+`scripts/render_release_compose.sh <immersx> <visualizer> <platform> <execution>`.

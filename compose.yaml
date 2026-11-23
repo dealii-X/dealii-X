@@ -11,6 +11,7 @@ services:
       - tutorial-examples:/examples
 
   coral-ssh-slurm:
+    image: ghcr.io/dealii-x/dealii-x:${DEALIIX_TAG:-main}
     build:
       context: ./containers/execution
       args:
