@@ -1,6 +1,6 @@
 services:
   prepare-examples:
-    image: ghcr.io/luca-heltai/immersx-tutorial:${IMMERSX_TAG:-main}
+    image: ghcr.io/luca-heltai/immersx-coral:${IMMERSX_TAG:-main}
     entrypoint: ["/bin/sh", "-eu", "-c"]
     command:
       - |
@@ -10,7 +10,7 @@ services:
       - tutorial-examples:/examples
 
   coral-ssh-slurm:
-    image: ghcr.io/luca-heltai/immersx-tutorial:${IMMERSX_TAG:-main}
+    image: ghcr.io/luca-heltai/immersx-coral:${IMMERSX_TAG:-main}
     hostname: slurm
     ports:
       - '127.0.0.1:${CORAL_SSH_PORT:-2222}:22'
