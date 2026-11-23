@@ -60,3 +60,11 @@ The Platform publication and end-to-end checks are tracked in
 Native ARM64 Visualizer publication is tracked in
 [Visualizer #47](https://github.com/2listic/coral-visualizer/issues/47).
 Select image tags available for your host architecture.
+
+## Published execution service
+
+The dealii-X workflow builds and tests SSH and Slurm on AMD64 and ARM64 before
+publishing `ghcr.io/dealii-x/dealii-x:main`. A stable Git tag on `main` promotes
+the tested image for that revision, building it first when needed. The
+`latest` tag follows the highest published stable version. Compose can build
+the same execution Dockerfile locally to select a different ImmersX base.

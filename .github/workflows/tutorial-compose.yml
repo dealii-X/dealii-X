@@ -6,18 +6,30 @@ on:
       - compose.yaml
       - containers/execution/**
       - scripts/tutorial-init.sh
+      - scripts/find_tested_container.sh
+      - scripts/publish_latest_container.sh
       - .github/workflows/tutorial-compose.yml
   push:
     branches: [main]
+    tags: ['v[0-9]*']
     paths:
       - compose.yaml
       - containers/execution/**
       - scripts/tutorial-init.sh
+      - scripts/find_tested_container.sh
+      - scripts/publish_latest_container.sh
       - .github/workflows/tutorial-compose.yml
   workflow_dispatch:
 
 permissions:
   contents: read
+
+concurrency:
+  group: integration-container-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  IMAGE: ghcr.io/dealii-x/dealii-x
 
 jobs:
   compose:
@@ -26,7 +38,7 @@ jobs:
       - uses: actions/checkout@v4
       - name: Validate development and release tag selection
         run: |
-          bash -n scripts/tutorial-init.sh containers/execution/entrypoint.sh
+          bash -n scripts/tutorial-init.sh containers/execution/entrypoint.sh scripts/find_tested_container.sh scripts/publish_latest_container.sh
           check_tags() {
             local immersx=$1 visualizer=$2 platform=$3
             docker compose config --format json |
@@ -41,20 +53,138 @@ jobs:
           IMMERSX_TAG=v1.2.3 CORAL_VISUALIZER_TAG=v2.3.4 DEALIIX_PLATFORM_TAG=v3.4.5 \
             check_tags v1.2.3 v2.3.4 v3.4.5
 
-  execution:
-    if: github.event_name != 'pull_request'
+  prepare:
+    if: github.event_name != 'pull_request' && github.repository == 'dealii-X/dealii-X' && (github.ref == 'refs/heads/main' || github.ref_type == 'tag')
     needs: compose
     runs-on: ubuntu-24.04
+    outputs:
+      release_digest: ${{ steps.release.outputs.digest }}
+      base_image: ${{ steps.base.outputs.image }}
     steps:
       - uses: actions/checkout@v4
-      - name: Build the execution service and test SSH and Slurm
+        with:
+          fetch-depth: ${{ github.ref_type == 'tag' && '0' || '1' }}
+      - name: Find the tested image of this stable Git tag
+        id: release
+        if: github.ref_type == 'tag'
         run: |
-          sudo rm -rf /usr/share/dotnet /usr/local/lib/android /opt/ghc /opt/hostedtoolcache
-          ./scripts/tutorial-init.sh
-          docker compose build --pull coral-ssh-slurm
-          trap 'docker compose logs coral-ssh-slurm; docker compose down' EXIT
-          docker compose up -d --wait --wait-timeout 90 coral-ssh-slurm
-          docker compose exec -T coral-ssh-slurm ssh -i /tutorial-ssh/id_ed25519 \
-            -o BatchMode=yes -o StrictHostKeyChecking=accept-new -o ConnectTimeout=5 \
-            root@localhost 'coral-release --help && scontrol ping | grep -q UP'
-          timeout 60 docker compose exec -T coral-ssh-slurm srun --mpi=none -n 1 /bin/true
+          [[ "$GITHUB_REF_NAME" =~ ^v(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)$ ]]
+          git merge-base --is-ancestor HEAD origin/main
+          digest=$(bash scripts/find_tested_container.sh "$IMAGE" "$(git rev-parse HEAD)")
+          echo "digest=$digest" >> "$GITHUB_OUTPUT"
+      - uses: docker/setup-buildx-action@v3
+        if: steps.release.outputs.digest == ''
+      - name: Resolve the ImmersX base for both architectures
+        id: base
+        if: steps.release.outputs.digest == ''
+        run: |
+          image=$(docker compose config --format json | jq -er '.services["coral-ssh-slurm"].build.args.IMMERSX_IMAGE')
+          digest=$(docker buildx imagetools inspect "$image" --format '{{.Manifest.Digest}}')
+          [[ "$digest" =~ ^sha256:[0-9a-f]{64}$ ]]
+          echo "image=$image@$digest" >> "$GITHUB_OUTPUT"
+
+  execution:
+    needs: prepare
+    if: needs.prepare.outputs.base_image != ''
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - runner: ubuntu-24.04
+            arch: amd64
+          - runner: ubuntu-24.04-arm
+            arch: arm64
+    runs-on: ${{ matrix.runner }}
+    permissions:
+      contents: read
+      packages: write
+    env:
+      TAG: run-${{ github.run_id }}-${{ matrix.arch }}
+    steps:
+      - uses: actions/checkout@v4
+      - name: Reserve space for the ImmersX image
+        run: sudo rm -rf /usr/share/dotnet /usr/local/lib/android /opt/ghc /opt/hostedtoolcache
+      - uses: docker/setup-buildx-action@v3
+      - uses: docker/build-push-action@v6
+        with:
+          context: containers/execution
+          load: true
+          platforms: linux/${{ matrix.arch }}
+          build-args: IMMERSX_IMAGE=${{ needs.prepare.outputs.base_image }}
+          tags: ${{ env.IMAGE }}:${{ env.TAG }}
+      - name: Test SSH and Slurm in the running execution image
+        run: |
+          backend=$(docker run -d --hostname slurm "$IMAGE:$TAG")
+          trap 'docker logs "$backend"; docker rm -f "$backend" >/dev/null' EXIT
+          for attempt in {1..30}; do
+            if docker exec "$backend" ssh -i /tutorial-ssh/id_ed25519 \
+              -o BatchMode=yes -o StrictHostKeyChecking=accept-new -o ConnectTimeout=2 \
+              root@localhost 'coral-release --help && scontrol ping | grep -q UP'; then
+              timeout 60 docker exec "$backend" srun --mpi=none -n 1 /bin/true
+              exit
+            fi
+            if [[ "$(docker inspect --format '{{.State.Running}}' "$backend")" == false ]]; then
+              exit 1
+            fi
+            sleep 2
+          done
+          exit 1
+      - uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+      - name: Push the tested architecture
+        run: docker push "$IMAGE:$TAG"
+
+  publish:
+    needs: [prepare, execution]
+    if: >-
+      ${{ !cancelled() && (needs.execution.result == 'success' ||
+      needs.prepare.outputs.release_digest != '') }}
+    runs-on: ubuntu-24.04
+    permissions:
+      packages: write
+    steps:
+      - uses: docker/setup-buildx-action@v3
+      - uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+      - name: Publish the tested multi-architecture image
+        env:
+          RELEASE_DIGEST: ${{ needs.prepare.outputs.release_digest }}
+        run: |
+          tag=main
+          if [[ "$GITHUB_REF_TYPE" == tag ]]; then tag=$GITHUB_REF_NAME; fi
+          if [[ -n "$RELEASE_DIGEST" ]]; then
+            docker buildx imagetools create --tag "$IMAGE:$tag" "$IMAGE@$RELEASE_DIGEST"
+          else
+            docker buildx imagetools create --tag "$IMAGE:sha-$GITHUB_SHA" --tag "$IMAGE:$tag" \
+              "$IMAGE:run-$GITHUB_RUN_ID-amd64" "$IMAGE:run-$GITHUB_RUN_ID-arm64"
+          fi
+          DOCKER_CONFIG=$(mktemp -d) docker manifest inspect "$IMAGE:$tag" >/dev/null
+
+  latest:
+    needs: publish
+    if: github.ref_type == 'tag'
+    runs-on: ubuntu-24.04
+    concurrency:
+      group: ghcr-release-latest
+      cancel-in-progress: false
+    permissions:
+      contents: read
+      packages: write
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: docker/setup-buildx-action@v3
+      - uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+      - name: Point latest at the highest published stable release
+        run: bash scripts/publish_latest_container.sh "$IMAGE"
