@@ -1,0 +1,62 @@
+name: Sync the Platform project
+
+on:
+  schedule:
+    - cron: '17 * * * *'
+  workflow_dispatch:
+
+permissions: {}
+
+concurrency: platform-sync
+
+jobs:
+  sync:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Add missing open issues and pull requests
+        shell: bash
+        env:
+          GH_TOKEN: ${{ secrets.PLATFORM_PROJECT_TOKEN }}
+          LC_ALL: C
+        run: |
+          set -euo pipefail
+
+          if [[ -z "${GH_TOKEN:-}" ]]; then
+            echo "::error::Set the PLATFORM_PROJECT_TOKEN Actions secret."
+            exit 1
+          fi
+
+          project_items='orgs/dealii-X/projectsV2/2/items'
+          repos=(
+            2listic/coral
+            2listic/coral-visualizer
+            2listic/dealiiX-platform
+            luca-heltai/immersx
+            luca-heltai/metric-flow-x
+          )
+
+          temp_dir=$(mktemp -d)
+          trap 'rm -rf "$temp_dir"' EXIT
+
+          gh api --paginate "$project_items?per_page=100" \
+            --jq '.[] | select(.content_type == "Issue" or .content_type == "PullRequest") | [.content_type, .content.id] | @tsv' \
+            | sort -u > "$temp_dir/project.tsv"
+
+          for repo in "${repos[@]}"; do
+            # The issues endpoint also returns pull requests. Use the pulls
+            # endpoint for those so their IDs match the project content IDs.
+            gh api --paginate "repos/$repo/issues?state=open&per_page=100" \
+              --jq '.[] | select(.pull_request == null) | ["Issue", .id] | @tsv'
+            gh api --paginate "repos/$repo/pulls?state=open&per_page=100" \
+              --jq '.[] | ["PullRequest", .id] | @tsv'
+          done > "$temp_dir/open.tsv"
+
+          sort -u "$temp_dir/open.tsv" -o "$temp_dir/open.tsv"
+          comm -23 "$temp_dir/open.tsv" "$temp_dir/project.tsv" > "$temp_dir/missing.tsv"
+
+          printf 'Open source items: %s\n' "$(wc -l < "$temp_dir/open.tsv")"
+          printf 'Missing project items: %s\n' "$(wc -l < "$temp_dir/missing.tsv")"
+
+          while IFS=$'\t' read -r type id; do
+            gh api --method POST "$project_items" -f type="$type" -F id="$id" --silent
+          done < "$temp_dir/missing.tsv"
