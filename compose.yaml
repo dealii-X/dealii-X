@@ -1,16 +1,20 @@
 services:
   prepare-examples:
-    image: ghcr.io/luca-heltai/immersx-coral:${IMMERSX_TAG:-main}
+    image: ghcr.io/luca-heltai/immersx:${IMMERSX_TAG:-main}
+    user: root
     entrypoint: ["/bin/sh", "-eu", "-c"]
     command:
       - |
         find /examples -mindepth 1 -maxdepth 1 -exec rm -rf -- {} +
-        cp -a /opt/dealiix/immersx/Release/share/immersx/coral/examples/. /examples/
+        cp -a /opt/immersx/share/immersx/coral/examples/. /examples/
     volumes:
       - tutorial-examples:/examples
 
   coral-ssh-slurm:
-    image: ghcr.io/luca-heltai/immersx-coral:${IMMERSX_TAG:-main}
+    build:
+      context: ./containers/execution
+      args:
+        IMMERSX_IMAGE: ghcr.io/luca-heltai/immersx:${IMMERSX_TAG:-main}
     hostname: slurm
     ports:
       - '127.0.0.1:${CORAL_SSH_PORT:-2222}:22'

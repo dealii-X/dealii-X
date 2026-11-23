@@ -16,4 +16,4 @@ fi
 chmod 600 "$ssh_dir/id_ed25519"
 chmod 644 "$ssh_dir/id_ed25519.pub"
 
-printf 'Tutorial data and SSH key initialized. Run docker compose pull and docker compose up -d.\n'
+printf 'Tutorial data and SSH key initialized. Follow the Compose startup commands in doc/tutorial-containers.md.\n'

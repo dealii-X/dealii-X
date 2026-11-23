@@ -5,7 +5,8 @@ and SSH key, pull the images, and start the stack:
 
 ```sh
 ./scripts/tutorial-init.sh
-docker compose pull
+docker compose pull --ignore-buildable
+docker compose build --pull coral-ssh-slurm
 docker compose up -d
 ```
 
@@ -17,9 +18,10 @@ ImmersX tag. Stop the stack with `docker compose down`.
 
 ## Development and release tags
 
-By default Compose pulls the `main` image tag for each service. The ImmersX
-backend comes from the ImmersX default Git branch and includes Coral and the
-ImmersX plugins. ImmersX builds against the Coral and MetricFlowX images.
+By default the stack uses the `main` tags of ImmersX, Platform, and Coral
+Visualizer. dealii-X builds the SSH/Slurm execution service on top of the
+selected published ImmersX image. ImmersX provides its applications, Coral,
+and the plugins.
 To select a published release combination, set each service's tag in `.env`:
 
 ```dotenv
@@ -29,8 +31,9 @@ DEALIIX_PLATFORM_TAG=main
 ```
 
 Replace `main` with the published release tag for that component. The tags can
-differ between services. Compose reads these tag variables during both pull
-and startup. `docker compose config --images` shows the resulting references.
+differ between services. Compose reads these tags when pulling and building the stack. Run the same
+three Compose commands after updating a tag. `docker compose config` shows the
+resolved service images and the ImmersX base of the execution service.
 Configure the local ports with `CORAL_SSH_PORT`, `VISUALIZER_PORT`, or
 `PLATFORM_PORT`. The defaults are 2222, 8008, and 6080, bound to loopback.
 
