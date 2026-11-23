@@ -26,6 +26,16 @@ fi
 service munge start
 service mariadb start
 service slurmdbd start
+# The init script returns before slurmdbd has loaded the accounting database.
+# slurmctld needs the resource definitions on a clean container.
+if ! timeout 30 bash -c '
+  until sacctmgr --noheader --parsable2 show tres format=Type | grep -qx cpu; do
+    sleep 1
+  done
+'; then
+  echo 'Slurm accounting database did not become ready.' >&2
+  exit 1
+fi
 service slurmctld start
 slurmd -N slurmnode1
 service ssh start
