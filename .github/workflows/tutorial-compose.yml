@@ -168,7 +168,7 @@ jobs:
 
   latest:
     needs: publish
-    if: github.ref_type == 'tag'
+    if: ${{ !cancelled() && github.ref_type == 'tag' && needs.publish.result == 'success' }}
     runs-on: ubuntu-24.04
     concurrency:
       group: ghcr-release-latest
