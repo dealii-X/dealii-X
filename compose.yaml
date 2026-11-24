@@ -1,0 +1,55 @@
+services:
+  prepare-examples:
+    image: ghcr.io/luca-heltai/immersx:${IMMERSX_TAG:-main}
+    user: root
+    entrypoint: ["/bin/sh", "-eu", "-c"]
+    command:
+      - |
+        find /examples -mindepth 1 -maxdepth 1 -exec rm -rf -- {} +
+        cp -a /opt/immersx/share/immersx/coral/examples/. /examples/
+    volumes:
+      - tutorial-examples:/examples
+
+  coral-ssh-slurm:
+    image: ghcr.io/dealii-x/dealii-x:${DEALIIX_TAG:-main}
+    build:
+      context: ./containers/execution
+      args:
+        IMMERSX_IMAGE: ghcr.io/luca-heltai/immersx:${IMMERSX_TAG:-main}
+    hostname: slurm
+    ports:
+      - '127.0.0.1:${CORAL_SSH_PORT:-2222}:22'
+    volumes:
+      - ./.dealiix-tutorial/shared-data:/app/shared-data
+      - ./.dealiix-tutorial/ssh:/tutorial-ssh
+    healthcheck:
+      test: [CMD-SHELL, 'test -s /root/.ssh/authorized_keys && scontrol ping | grep -q UP']
+      interval: 5s
+      timeout: 5s
+      retries: 12
+
+  coral-visualizer:
+    image: ghcr.io/2listic/coral-visualizer:${CORAL_VISUALIZER_TAG:-main}
+    ports:
+      - '127.0.0.1:${VISUALIZER_PORT:-8008}:8080'
+    volumes:
+      - ./.dealiix-tutorial/shared-data:/deploy/data
+
+  dealiix-platform:
+    image: ghcr.io/2listic/dealiix-platform:${DEALIIX_PLATFORM_TAG:-main}
+    ports:
+      - '127.0.0.1:${PLATFORM_PORT:-6080}:6080'
+    volumes:
+      - ./.dealiix-tutorial/ssh:/run/tutorial-ssh:ro
+      - ./.dealiix-tutorial/platform-userdata:/var/lib/dealiix-platform
+      - tutorial-examples:/opt/dealiix/immersx/coral/examples:ro
+    depends_on:
+      prepare-examples:
+        condition: service_completed_successfully
+      coral-ssh-slurm:
+        condition: service_healthy
+      coral-visualizer:
+        condition: service_started
+
+volumes:
+  tutorial-examples:

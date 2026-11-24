@@ -1,0 +1,239 @@
+name: Tutorial Compose
+
+on:
+  pull_request:
+    paths:
+      - compose.yaml
+      - containers/execution/**
+      - scripts/tutorial-init.sh
+      - scripts/resolve_container_release.py
+      - scripts/render_release_compose.sh
+      - scripts/publish_latest_container.sh
+      - .github/workflows/tutorial-compose.yml
+  push:
+    branches: [main]
+    tags: ['v[0-9]*']
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: integration-container-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  IMAGE: ghcr.io/dealii-x/dealii-x
+
+jobs:
+  compose:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+      - name: Validate development and release tag selection
+        run: |
+          bash -n scripts/tutorial-init.sh containers/execution/entrypoint.sh scripts/render_release_compose.sh scripts/publish_latest_container.sh
+          check_tags() {
+            local immersx=$1 visualizer=$2 platform=$3 execution=$4
+            docker compose config --format json |
+              jq -e --arg immersx "$immersx" --arg visualizer "$visualizer" --arg platform "$platform" --arg execution "$execution" '
+                .services["coral-ssh-slurm"].image == ("ghcr.io/dealii-x/dealii-x:" + $execution) and
+                .services["prepare-examples"].image == ("ghcr.io/luca-heltai/immersx:" + $immersx) and
+                .services["coral-ssh-slurm"].build.args.IMMERSX_IMAGE == ("ghcr.io/luca-heltai/immersx:" + $immersx) and
+                .services["coral-visualizer"].image == ("ghcr.io/2listic/coral-visualizer:" + $visualizer) and
+                .services["dealiix-platform"].image == ("ghcr.io/2listic/dealiix-platform:" + $platform)
+              '
+          }
+          check_tags main main main main
+          IMMERSX_TAG=v1.2.3 CORAL_VISUALIZER_TAG=v2.3.4 DEALIIX_PLATFORM_TAG=v3.4.5 DEALIIX_TAG=v4.5.6 \
+            check_tags v1.2.3 v2.3.4 v3.4.5 v4.5.6
+          digest="sha256:$(printf '%064d' 0)"
+          base="ghcr.io/luca-heltai/immersx:v1.2.3@$digest"
+          visualizer="ghcr.io/2listic/coral-visualizer:2.3.4@$digest"
+          platform="ghcr.io/2listic/dealiix-platform:v3.4.5@$digest"
+          execution="ghcr.io/dealii-x/dealii-x:v4.5.6@$digest"
+          release="$RUNNER_TEMP/compose.release.json"
+          bash scripts/render_release_compose.sh "$base" "$visualizer" "$platform" "$execution" > "$release"
+          PLATFORM_PORT=6081 docker compose -f "$release" config --format json |
+            jq -e --arg base "$base" --arg visualizer "$visualizer" --arg platform "$platform" \
+              --arg execution "$execution" '
+                .services["prepare-examples"].image == $base and
+                .services["coral-visualizer"].image == $visualizer and
+                .services["dealiix-platform"].image == $platform and
+                .services["dealiix-platform"].ports[0].published == "6081" and
+                .services["coral-ssh-slurm"].image == $execution and
+                (.services["coral-ssh-slurm"] | has("build") | not)
+              '
+
+  prepare:
+    if: github.event_name == 'pull_request' || (github.repository == 'dealii-X/dealii-X' && (github.ref == 'refs/heads/main' || github.ref_type == 'tag'))
+    needs: compose
+    runs-on: ubuntu-24.04
+    outputs:
+      base_image: ${{ steps.images.outputs.base }}
+      visualizer_image: ${{ steps.images.outputs.visualizer }}
+      platform_image: ${{ steps.images.outputs.platform }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: ${{ github.ref_type == 'tag' && '0' || '1' }}
+      - name: Resolve image references for the build
+        id: images
+        run: |
+          if [[ "$GITHUB_REF_TYPE" == tag ]]; then
+            [[ "$GITHUB_REF_NAME" =~ ^v(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)$ ]]
+            git merge-base --is-ancestor HEAD origin/main
+            base=$(python3 scripts/resolve_container_release.py luca-heltai/immersx)
+            visualizer=$(python3 scripts/resolve_container_release.py 2listic/coral-visualizer --allow-unprefixed)
+            platform=$(python3 scripts/resolve_container_release.py 2listic/dealiix-platform)
+          else
+            base=$(python3 scripts/resolve_container_release.py luca-heltai/immersx --main)
+            visualizer=ghcr.io/2listic/coral-visualizer:main
+            platform=ghcr.io/2listic/dealiix-platform:main
+          fi
+          printf 'base=%s\nvisualizer=%s\nplatform=%s\n' "$base" "$visualizer" "$platform" >> "$GITHUB_OUTPUT"
+
+  execution:
+    needs: prepare
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - runner: ubuntu-24.04
+            arch: amd64
+          - runner: ubuntu-24.04-arm
+            arch: arm64
+    runs-on: ${{ matrix.runner }}
+    permissions:
+      contents: read
+      packages: write
+    env:
+      TAG: run-${{ github.run_id }}-${{ matrix.arch }}
+    steps:
+      - uses: actions/checkout@v4
+      - name: Reserve space for the ImmersX image
+        run: sudo rm -rf /usr/share/dotnet /usr/local/lib/android /opt/ghc /opt/hostedtoolcache
+      - name: Build the execution image
+        env:
+          BASE_IMAGE: ${{ needs.prepare.outputs.base_image }}
+          VISUALIZER_IMAGE: ${{ needs.prepare.outputs.visualizer_image }}
+          PLATFORM_IMAGE: ${{ needs.prepare.outputs.platform_image }}
+        run: |
+          docker build --platform "linux/${{ matrix.arch }}" --tag "$IMAGE:$TAG" \
+            --build-arg "IMMERSX_IMAGE=$BASE_IMAGE" \
+            --label "org.opencontainers.image.source=$GITHUB_SERVER_URL/$GITHUB_REPOSITORY" \
+            --label "org.opencontainers.image.revision=$GITHUB_SHA" \
+            --label "org.opencontainers.image.base.name=$BASE_IMAGE" \
+            --label "org.dealii-x.coral-visualizer=$VISUALIZER_IMAGE" \
+            --label "org.dealii-x.platform=$PLATFORM_IMAGE" containers/execution
+      - name: Test SSH and Slurm in the running execution image
+        run: |
+          backend=$(docker run -d --hostname slurm "$IMAGE:$TAG")
+          cleanup() {
+            local status=$?
+            if (( status != 0 )); then
+              docker logs "$backend" || true
+              docker exec "$backend" scontrol ping || true
+              if docker cp "$backend:/var/log/slurm" "$RUNNER_TEMP/slurm-logs"; then
+                find "$RUNNER_TEMP/slurm-logs" -type f -exec tail -n 80 {} +
+              fi
+            fi
+            docker rm -f "$backend" >/dev/null
+          }
+          trap cleanup EXIT
+          for attempt in {1..30}; do
+            if docker exec "$backend" ssh -i /tutorial-ssh/id_ed25519 \
+              -o BatchMode=yes -o StrictHostKeyChecking=accept-new -o ConnectTimeout=2 \
+              root@localhost 'coral-release --help >/dev/null && scontrol ping'; then
+              timeout 60 docker exec "$backend" srun --mpi=none -n 1 /bin/true
+              exit
+            fi
+            if [[ "$(docker inspect --format '{{.State.Running}}' "$backend")" == false ]]; then
+              exit 1
+            fi
+            sleep 2
+          done
+          exit 1
+      - uses: docker/login-action@v3
+        if: github.event_name != 'pull_request'
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+      - name: Push the tested architecture
+        if: github.event_name != 'pull_request'
+        run: docker push "$IMAGE:$TAG"
+
+  publish:
+    needs: [prepare, execution]
+    if: github.event_name != 'pull_request'
+    outputs:
+      image: ${{ steps.image.outputs.reference }}
+    runs-on: ubuntu-24.04
+    permissions:
+      packages: write
+    steps:
+      - uses: docker/setup-buildx-action@v3
+      - uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+      - name: Publish the tested multi-architecture image
+        id: image
+        run: |
+          tag=main
+          if [[ "$GITHUB_REF_TYPE" == tag ]]; then tag=$GITHUB_REF_NAME; fi
+          docker buildx imagetools create --tag "$IMAGE:$tag" \
+            "$IMAGE:run-$GITHUB_RUN_ID-amd64" "$IMAGE:run-$GITHUB_RUN_ID-arm64"
+          anonymous=$(mktemp -d)
+          trap 'rm -rf -- "$anonymous"' EXIT
+          DOCKER_CONFIG="$anonymous" docker manifest inspect "$IMAGE:$tag" >/dev/null
+          digest=$(docker buildx imagetools inspect "$IMAGE:$tag" --format '{{.Manifest.Digest}}')
+          [[ "$digest" =~ ^sha256:[0-9a-f]{64}$ ]]
+          printf 'reference=%s:%s@%s\n' "$IMAGE" "$tag" "$digest" >> "$GITHUB_OUTPUT"
+
+  release-compose:
+    needs: [prepare, publish]
+    if: github.ref_type == 'tag'
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+      - name: Generate the Compose file with published versions
+        env:
+          BASE_IMAGE: ${{ needs.prepare.outputs.base_image }}
+          VISUALIZER_IMAGE: ${{ needs.prepare.outputs.visualizer_image }}
+          PLATFORM_IMAGE: ${{ needs.prepare.outputs.platform_image }}
+          EXECUTION_IMAGE: ${{ needs.publish.outputs.image }}
+        run: |
+          bash scripts/render_release_compose.sh "$BASE_IMAGE" "$VISUALIZER_IMAGE" \
+            "$PLATFORM_IMAGE" "$EXECUTION_IMAGE" > compose.release.json
+          docker compose -f compose.release.json config --quiet
+      - uses: actions/upload-artifact@v4
+        with:
+          name: dealii-x-compose-${{ github.ref_name }}
+          path: compose.release.json
+          overwrite: true
+
+  latest:
+    needs: publish
+    if: ${{ !cancelled() && github.ref_type == 'tag' && needs.publish.result == 'success' }}
+    runs-on: ubuntu-24.04
+    concurrency:
+      group: ghcr-release-latest
+      cancel-in-progress: false
+    permissions:
+      contents: read
+      packages: write
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: docker/setup-buildx-action@v3
+      - uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+      - name: Point latest at the highest published stable release
+        run: bash scripts/publish_latest_container.sh "$IMAGE"

@@ -23,3 +23,6 @@ Main entry points:
 
 - **Official project home page**: <https://www.dealii-x.eu>
 - **Technical repositories page**: <https://dealii-x.github.io>
+
+The [tutorial container guide](doc/tutorial-containers.md) explains how to
+start the stack with Compose and select development or release image tags.
